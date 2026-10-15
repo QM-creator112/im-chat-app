@@ -15,6 +15,10 @@
 config.yaml
 config.local.yaml
 
+# 本地专用 SQL（含真实密码，绝不入库）
+# 通用模板 server/migrations/000_bootstrap.sql 只有占位符，那个是要提交的
+server/migrations/local/
+
 # ==================== Go ====================
 # 编译产物
 bin/
