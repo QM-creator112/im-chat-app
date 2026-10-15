@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IM 即时通信应用 · 可交互原型</title>
+<style>
+  :root{
+    --bg:#F5F7FA; --surface:#fff; --border:#DDE3EA; --border2:#C3CDD8;
+    --accent:#3E6B82; --band:#E8F0F4; --text:#263238; --muted:#6B7A88;
+    --faint:#9AA7B4; --bubble-out:#D9EDF5; --danger:#C00000; --warn:#FFF4E0;
+    --warn-line:#E9CFA0; --warn-text:#8A5A00; --ok:#2E7D32; --ok-bg:#EDF7EE;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--text); font:14px/1.55 "Microsoft YaHei","微软雅黑",sans-serif;
+    display:flex; flex-direction:column;
+  }
+
+  /* ---------- 顶部工具条 ---------- */
+  header.bar{
+    background:var(--surface); border-bottom:1px solid var(--border);
+    padding:14px 22px; display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+  }
+  header.bar h1{font-size:17px;margin:0;font-weight:700}
+  header.bar .hint{font-size:12px;color:var(--muted)}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+  .tabs button{
+    font:inherit;font-size:12.5px;padding:6px 13px;border-radius:16px;cursor:pointer;
+    border:1px solid var(--border);background:#fff;color:var(--text);
+  }
+  .tabs button:hover{border-color:var(--border2)}
+  .tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  /* ---------- 舞台 ---------- */
+  .stage{flex:1;display:flex;justify-content:center;align-items:flex-start;padding:26px;gap:26px;overflow:auto}
+  .app{
+    width:900px;height:600px;background:var(--surface);border:1px solid var(--border2);
+    border-radius:10px;overflow:hidden;display:flex;box-shadow:0 6px 24px rgba(38,50,56,.07);
+    position:relative;flex:0 0 auto;
+  }
+  .notes{
+    width:320px;background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:16px 18px;font-size:12.5px;color:var(--muted);flex:0 0 auto;
+  }
+  .notes h3{margin:0 0 10px;font-size:13px;color:var(--text)}
+  .notes ul{margin:0 0 14px;padding-left:18px}
+  .notes li{margin:5px 0;line-height:1.5}
+  .notes code{background:var(--band);color:var(--accent);padding:1px 5px;border-radius:4px;font-size:11.5px}
+
+  /* ---------- 登录页 ---------- */
+  .login{flex:1;display:flex;align-items:center;justify-content:center}
+  .login .card{width:330px;text-align:center}
+  .logo{width:52px;height:52px;border-radius:50%;background:var(--accent);color:#fff;
+        display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin:0 auto 14px}
+  .login h2{font-size:19px;margin:0 0 26px}
+  .field{text-align:left;margin-bottom:14px}
+  .field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  .field input{width:100%;height:38px;padding:0 12px;border:1px solid var(--border);
+               border-radius:7px;font:inherit;font-size:13px;background:#fff}
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .btn{width:100%;height:38px;border:0;border-radius:7px;font:inherit;font-size:13.5px;
+       font-weight:700;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.primary:hover{background:#34596d}
+  .btn.ghost{background:#fff;color:var(--accent);border:1px solid var(--border);margin-top:10px}
+  .alert{margin-top:16px;text-align:left;background:#FDECEC;border:1px solid #F3C7C7;
+         color:var(--danger);border-radius:7px;padding:9px 12px;font-size:12px}
+  .foot{font-size:11px;color:var(--faint);text-align:left;margin-top:22px;line-height:1.7}
+
+  /* ---------- 主界面 ---------- */
+  .sidebar{width:250px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex:0 0 auto}
+  .sidebar .head{padding:14px 14px 10px;display:flex;align-items:center}
+  .sidebar .head b{font-size:14px}
+  .sidebar .head .plus{margin-left:auto;width:26px;height:26px;border-radius:50%;background:var(--accent);
+                       color:#fff;border:0;font-size:16px;line-height:1;cursor:pointer}
+  .sidebar .search{margin:0 12px 8px}
+  .sidebar .search input{width:100%;height:30px;border:1px solid var(--border);border-radius:6px;
+                         background:var(--bg);padding:0 10px;font:inherit;font-size:12px}
+  .conv{overflow:auto;flex:1}
+  .conv .row{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid #EEF2F6;cursor:pointer;align-items:center}
+  .conv .row:hover{background:#FAFCFD}
+  .conv .row.on{background:var(--band)}
+  .av{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;font-size:14px;
+      font-weight:700;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .av.sm{width:24px;height:24px;font-size:11px}
+  .conv .meta{min-width:0;flex:1}
+  .conv .meta b{display:block;font-size:13px;font-weight:600}
+  .conv .meta span{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .badge{background:var(--danger);color:#fff;font-size:10.5px;min-width:19px;height:19px;border-radius:10px;
+         display:flex;align-items:center;justify-content:center;padding:0 6px;font-weight:700}
+
+  .chatpane{flex:1;display:flex;flex-direction:column;min-width:0}
+  .chatpane .chead{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:10px}
+  .chatpane .chead b{font-size:14px}
+  .chatpane .chead .sub{font-size:11.5px;color:var(--muted)}
+  .chatpane .chead .right{margin-left:auto;font-size:11.5px}
+  .ok{color:var(--ok)} .warn{color:#E8A33D} .muted{color:var(--faint)}
+  .banner{background:var(--warn);border-bottom:1px solid var(--warn-line);color:var(--warn-text);
+          font-size:12px;padding:8px 16px;display:none;align-items:center;gap:8px}
+  .banner.on{display:flex}
+  .banner .dot{width:9px;height:9px;border-radius:50%;background:#E8A33D;flex:0 0 auto}
+  .stream{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:3px}
+  .day{align-self:center;font-size:11px;color:var(--faint);margin:6px 0 10px}
+  .sys{align-self:center;font-size:11px;color:var(--faint);margin:6px 0}
+  .pline{display:flex;gap:8px;align-items:flex-start}
+  .pcol{max-width:74%;display:flex;flex-direction:column}
+  .pcol.mine{align-self:flex-end;align-items:flex-end}
+  .who{font-size:11px;color:var(--accent);font-weight:700;margin:8px 0 3px 32px}
+  .bub{background:#fff;border:1px solid var(--border);border-radius:9px;padding:8px 12px;
+       font-size:12.5px;line-height:1.6;word-break:break-word}
+  .mine .bub{background:var(--bubble-out);border-color:#BBD9E6}
+  .state{font-size:10.5px;margin-top:3px;color:var(--faint)}
+  .state.read{color:var(--ok)}
+  .state.fail{color:var(--danger);cursor:pointer;text-decoration:underline}
+  .card{background:#F3F7FA;border:1px solid #CFE0EA;border-left:4px solid var(--accent);
+        border-radius:9px;padding:12px 14px;font-size:12.5px;max-width:78%;align-self:flex-start}
+  .card .ctitle{display:flex;align-items:baseline;gap:8px}
+  .card .ctitle b{color:var(--accent);font-size:12.5px}
+  .card .ctitle span{margin-left:auto;font-size:10.5px;color:var(--faint)}
+  .card p{margin:8px 0 0;line-height:1.7}
+  .card .src{font-size:10.5px;color:var(--faint);margin-top:8px}
+  .sysline{align-self:flex-start;background:#FDECEC;border:1px solid #F3C7C7;color:var(--danger);
+           border-radius:8px;padding:8px 12px;font-size:12px;max-width:78%}
+  .sysline small{display:block;color:#8A3B3B;font-size:11px;margin-top:2px}
+  .composer{border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:10px}
+  .composer input{flex:1;height:38px;border:1px solid var(--border);border-radius:19px;
+                  background:var(--bg);padding:0 16px;font:inherit;font-size:12.5px}
+  .composer input:focus{outline:none;border-color:var(--accent);background:#fff}
+  .composer button{height:38px;padding:0 20px;border:0;border-radius:19px;background:var(--accent);
+                   color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>IM 即时通信应用 · 可交互原型</h1>
+  <span class="hint">纯静态 HTML，双击即可打开 · 无任何依赖</span>
+  <div class="tabs">
+    <button data-go="login">① 登录</button>
+    <button data-go="single" class="on">③ 单聊</button>
+    <button data-go="group">④ 群聊</button>
+    <button data-go="reconnect">⑤ 断线重连</button>
+    <button data-go="ai">⑥ AI 助手</button>
+    <button data-go="empty">② 空态</button>
+  </div>
+</header>
+
+<div class="stage">
+  <div class="app">
+
+    <!-- ==================== 登录 ==================== -->
+    <div class="login hidden" id="login">
+      <div class="card">
+        <div class="logo">聊</div>
+        <h2>IM 即时通信</h2>
+        <div class="field"><label>用户名</label><input id="u" value="test001"></div>
+        <div class="field"><label>密码</label><input id="p" type="password" value="Test1234"></div>
+        <button class="btn primary" id="dologin">登 录</button>
+        <button class="btn ghost">还没有账号？注册</button>
+        <div class="alert">× 用户名或密码错误（code 2002）</div>
+        <div class="foot">
+          登录后拿到 <b>access_token</b>（30 分钟）+ <b>refresh_token</b>（14 天）。<br>
+          access_token 过期时前端自动用 refresh_token 换新的，用户无感。
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 主界面 ==================== -->
+    <div class="app-body" id="appbody" style="display:flex;flex:1;min-width:0">
+
+      <!-- 会话列表 -->
+      <div class="sidebar">
+        <div class="head"><b>会话</b><button class="plus" title="发起新会话">+</button></div>
+        <div class="search"><input placeholder="搜索"></div>
+        <div class="conv" id="conv"></div>
+      </div>
+
+      <!-- 聊天区 -->
+      <div class="chatpane">
+        <div class="chead">
+          <b id="ctitle">张伟</b>
+          <span class="sub" id="csub">在线</span>
+          <span class="right ok" id="cright">● 已连接</span>
+        </div>
+        <div class="banner" id="banner">
+          <span class="dot"></span>
+          <span>连接已断开，正在重连…（第 3 次，8 秒后重试）</span>
+        </div>
+        <div class="stream" id="stream"></div>
+        <div class="composer">
+          <input id="msg" placeholder="输入消息…（回车发送）">
+          <button id="send">发送</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <h3>这一屏在验证什么</h3>
+    <ul id="notes"></ul>
+    <h3>对应的代码位置</h3>
+    <ul>
+      <li><code>web/src/views/LoginView.vue</code> — 登录页</li>
+      <li><code>web/src/views/ChatView.vue</code> — 主界面</li>
+      <li><code>components/ConversationList.vue</code> — 左栏</li>
+      <li><code>components/MessageStream.vue</code> — 消息流</li>
+      <li><code>components/ConnectionBanner.vue</code> — 断线横幅</li>
+      <li><code>stores/message.ts</code> — 三态与去重</li>
+    </ul>
+    <p style="margin:12px 0 0;font-size:11.5px">
+      配色沿用简历与手册：浅蓝 <code>#E8F0F4</code> · 青色 <code>#3E6B82</code>。
+      真实实现用 Vue 3 + Element Plus，本原型是纯 HTML 便于随时打开。
+    </p>
+  </div>
+</div>
+
+<script>
+const CONVS = [
+  {id:1, name:'张伟',        ch:'张', last:'明天三点见',    unread:2,  type:'single'},
+  {id:2, name:'产品需求群',  ch:'产', last:'李娜: 原型图 v3', unread:5,  type:'group'},
+  {id:3, name:'妈妈',        ch:'妈', last:'记得吃饭',      unread:0,  type:'single'},
+  {id:4, name:'技术交流群',  ch:'技', last:'小王: 复现了',   unread:12, type:'group'},
+];
+
+const NOTES = {
+  login:['未登录时唯一入口','用户名 + bcrypt 校验密码','错误码 2002 的界面表现'],
+  single:['消息三态：发送中 / 已发送 / 发送失败','失败可点击重试，复用同一个 clientMsgId','已读回执（✓✓ 已读）'],
+  group:['群消息显示发送者昵称与头像','已读按人数统计（2/4）','系统消息（入群提示）居中显示'],
+  reconnect:['顶部横幅提示重连中与第几次、还剩几秒','重连成功后自动补拉漏掉的消息','补拉结果以 seq 区间呈现'],
+  ai:['@AI 触发的回复以卡片形式呈现','标注模型名与来源','侧车挂掉时降级为系统消息，聊天不受影响'],
+  empty:['没有选中会话时的引导文案','右上角 + 发起新会话','未读数红点'],
+};
+
+let current = CONVS[0];
+
+/* ---------- 渲染会话列表 ---------- */
+function renderConv(){
+  document.getElementById('conv').innerHTML = CONVS.map(c => `
+    <div class="row ${c.id===current.id?'on':''}" data-id="${c.id}">
+      <div class="av">${c.ch}</div>
+      <div class="meta"><b>${c.name}</b><span>${c.last}</span></div>
+      ${c.unread?`<div class="badge">${c.unread}</div>`:''}
+    </div>`).join('');
+  document.querySelectorAll('.conv .row').forEach(el=>{
+    el.onclick = ()=>{ current = CONVS.find(c=>c.id==el.dataset.id);
+      renderConv(); renderChat(); };
+  });
+}
+
+/* ---------- 气泡 ---------- */
+function inBub(t){ return `<div class="pcol"><div class="bub">${t}</div></div>`; }
+function outBub(t, state){
+  const s = state==='read' ? '<div class="state read">✓✓ 已读</div>'
+          : state==='sending' ? '<div class="state">发送中…</div>'
+          : state==='fail' ? '<div class="state fail" onclick="retry(this)">发送失败 · 点击重试</div>'
+          : '';
+  return `<div class="pcol mine"><div class="bub">${t}</div>${s}</div>`;
+}
+function retry(el){
+  el.className='state';
+  el.textContent='发送中…';
+  setTimeout(()=>{ el.className='state read'; el.textContent='✓✓ 已读'; }, 900);
+}
+
+/* ---------- 各屏内容 ---------- */
+function renderChat(){
+  const st = document.getElementById('stream');
+  const title = document.getElementById('ctitle');
+  const sub = document.getElementById('csub');
+  const right = document.getElementById('cright');
+  const banner = document.getElementById('banner');
+  banner.classList.remove('on');
+  right.className = 'right ok';
+  right.textContent = '● 已连接';
+  sub.textContent = current.type==='group' ? '4 人' : '在线';
+
+  const view = document.querySelector('.tabs button.on')?.dataset.go || 'single';
+  title.textContent = current.name;
+
+  if(view==='empty'){
+    title.textContent='—'; sub.textContent=''; right.textContent='';
+    st.innerHTML = `<div style="margin:auto;color:var(--faint);font-size:13px">
+        选一个会话开始聊天<br><span style="font-size:12px">或点右上角 + 发起新会话</span></div>`;
+    return;
+  }
+
+  if(view==='reconnect'){
+    banner.classList.add('on');
+    right.className='right warn'; right.textContent='○ 已断开';
+    st.innerHTML = `<div class="day">今天</div>`
+      + inBub('刚才那条消息发出去没？')
+      + outBub('发了，但没收到回执','sending')
+      + `<div style="align-self:flex-start;background:var(--ok-bg);border:1px solid #C6E2C8;
+            border-radius:8px;padding:10px 13px;font-size:12px;max-width:78%;margin-top:10px">
+           <b style="color:var(--ok)">✓ 已重连成功</b>
+           <div style="color:#40694A;margin-top:3px">补拉 2 条漏掉的消息（seq 41–42）</div>
+         </div>`;
+    return;
+  }
+
+  if(view==='ai'){
+    right.textContent='已读 3/4';
+    st.innerHTML = `<div class="day">今天</div>`
+      + inBub('李娜: 原型图已经更新到 v3')
+      + outBub('@AI 帮我总结一下这个群最近的讨论')
+      + `<div class="card">
+           <div class="ctitle"><b>AI 助手</b><span>deepseek-chat</span></div>
+           <p>1. 原型图已更新至 v3，等待大家评审。<br>
+              2. 两个待确认问题：会话列表排序规则、未读数是否包含已读回执。<br>
+              3. 下一步：明天三点同步。</p>
+           <div class="src">由 FastAPI 侧车服务生成 · 独立超时 25s</div>
+         </div>
+         <div class="sysline">⚠ AI 助手暂时不可用<small>降级为系统消息，聊天不受影响</small></div>`;
+    return;
+  }
+
+  if(view==='group'){
+    right.textContent='已读 2/4';
+    st.innerHTML = `<div class="day">今天</div>`
+      + `<div class="who">李娜</div><div class="pline"><div class="av sm">李</div>
+           <div class="pcol"><div class="bub">原型图已经更新到 v3，麻烦大家过一眼</div></div></div>`
+      + `<div class="who">小王</div><div class="pline"><div class="av sm">王</div>
+           <div class="pcol"><div class="bub">收到，我下午看</div></div></div>`
+      + `<div style="display:flex;flex-direction:column;align-items:flex-end">
+           <div class="bub" style="background:var(--bubble-out);border-color:#BBD9E6;max-width:74%">
+             我看完了，有两个问题想确认</div>
+           <div class="state read">已读 2/4</div>
+         </div>`
+      + `<div class="sys">— 小王 加入群聊 —</div>`;
+    return;
+  }
+
+  // single（默认）
+  st.innerHTML = `<div class="day">今天</div>`
+    + inBub('明天的会议改到下午三点了，你看下时间行不行')
+    + outBub('好的，我看下日历','read')
+    + outBub('顺便把上周的文档发我一下','sending')
+    + inBub('文档我发你邮箱了')
+    + outBub('这个文件有点大，稍等','fail');
+}
+
+/* ---------- 发送消息 ---------- */
+function sendMsg(){
+  const box = document.getElementById('msg');
+  const t = box.value.trim();
+  if(!t) return;
+  const st = document.getElementById('stream');
+  const wrap = document.createElement('div');
+  wrap.innerHTML = outBub(t.replace(/</g,'&lt;'),'sending');
+  st.appendChild(wrap.firstElementChild);
+  st.scrollTop = st.scrollHeight;
+  box.value='';
+  const el = st.querySelector('.pcol.mine:last-of-type .state');
+  setTimeout(()=>{ if(el){ el.className='state read'; el.textContent='✓✓ 已读'; } }, 1000);
+}
+
+/* ---------- 屏幕切换 ---------- */
+document.querySelectorAll('.tabs button').forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    const go = b.dataset.go;
+    document.getElementById('login').classList.toggle('hidden', go!=='login');
+    document.getElementById('appbody').style.display = go==='login' ? 'none' : 'flex';
+    document.getElementById('notes').innerHTML = (NOTES[go]||[]).map(n=>`<li>${n}</li>`).join('');
+    if(go!=='login') renderChat();
+  };
+});
+document.getElementById('dologin').onclick = ()=>{
+  document.querySelector('.tabs button[data-go="single"]').click();
+};
+document.getElementById('send').onclick = sendMsg;
+document.getElementById('msg').addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
+
+/* ---------- 初始化 ---------- */
+renderConv();
+document.getElementById('notes').innerHTML = NOTES.single.map(n=>`<li>${n}</li>`).join('');
+renderChat();
+</script>
+</body>
+</html>

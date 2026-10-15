@@ -1,0 +1,102 @@
+# ============================================================================
+# CI —— 每次 push / PR 自动跑检查与测试
+#
+# 为什么需要：本地能跑 ≠ 别人 clone 下来能跑（可能漏了依赖、没提交某个文件）。
+# CI 会在 GitHub 的干净机器上从零构建一遍，绿了才说明代码真的可复现。
+#
+# ⚠️ 第一次跑会失败：因为 server/go.sum 与 web/package-lock.json 还不存在。
+#    这是正常的 —— Sprint 1 建好 Go module、Sprint 4 装好前端依赖后自然就绿了。
+# ============================================================================
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ==================== 后端 ====================
+  server:
+    name: 后端检查与测试
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: server/go.sum
+
+      - name: 下载依赖
+        working-directory: server
+        run: go mod download
+
+      - name: 格式检查（gofmt）
+        working-directory: server
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "以下文件未格式化，请在本地执行 gofmt -w . ："
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: 静态检查（go vet）
+        working-directory: server
+        run: go vet ./...
+
+      - name: 单元测试（含竞态检测）
+        working-directory: server
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: 打印覆盖率
+        working-directory: server
+        run: go tool cover -func=coverage.out | tail -n 1
+
+      - name: 编译检查
+        working-directory: server
+        run: go build -o /dev/null ./cmd/server
+
+  # ==================== 前端 ====================
+  web:
+    name: 前端类型检查与构建
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 检查 web 目录是否存在
+        id: check
+        run: |
+          if [ -f web/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "web/ 还没有初始化（Sprint 4 才建），跳过前端检查"
+          fi
+
+      - name: 安装 Node
+        if: steps.check.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装依赖
+        if: steps.check.outputs.exists == 'true'
+        working-directory: web
+        run: npm ci
+
+      - name: 类型检查
+        if: steps.check.outputs.exists == 'true'
+        working-directory: web
+        run: npm run type-check
+
+      - name: 构建
+        if: steps.check.outputs.exists == 'true'
+        working-directory: web
+        run: npm run build
