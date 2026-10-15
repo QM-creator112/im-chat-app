@@ -7,15 +7,20 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
 )
+
+// maxDotEnvSearchDepth 向上查找 .env 的最大层数。
+const maxDotEnvSearchDepth = 4
 
 // Config 是应用的全部配置。
 type Config struct {
@@ -72,9 +77,7 @@ type AIConfig struct {
 // 关键设计：**启动时就校验关键配置，缺了直接报错退出**。
 // 这比"运行到一半才 panic"好得多 —— 部署时能立刻发现问题。
 func Load() (*Config, error) {
-	// .env 不存在不算错误（生产环境用环境变量注入）
-	_ = godotenv.Load()
-	_ = godotenv.Load(".env.local")
+	loadDotEnv()
 
 	cfg := &Config{
 		Env:  getEnv("APP_ENV", "development"),
@@ -145,6 +148,84 @@ func (c *Config) IsProduction() bool {
 }
 
 // ---------- 内部工具 ----------
+
+// loadDotEnv 从当前目录开始向上查找 .env 并加载。
+//
+// ⚠️ 为什么需要「向上查找」而不是直接 godotenv.Load()：
+//
+// godotenv.Load() 只在**当前工作目录**找 .env。而本项目的 .env 放在
+// 仓库根目录（整个项目共用一份，前端和后端都从这里读），
+// 服务却是从 server/ 目录启动的：
+//
+//	im-chat-app/
+//	├── .env          ← 文件在这里
+//	└── server/       ← 工作目录在这里
+//
+// 结果是 .env 读不到，程序报「缺少 DB_USER, DB_PASSWORD, JWT_SECRET」，
+// 但文件明明存在 —— 这个坑在本地真实踩过。
+//
+// 向上逐层查找既保留了「.env 只有一份」的好处，又不受启动目录影响。
+// 生产环境没有 .env，此函数静默返回，配置由环境变量注入。
+func loadDotEnv() {
+	dir, err := os.Getwd()
+	if err != nil {
+		return
+	}
+
+	for i := 0; i < maxDotEnvSearchDepth; i++ {
+		// .env 优先，其次 .env.local（本机覆盖，不入库）
+		for _, name := range []string{".env.local", ".env"} {
+			loadEnvFile(filepath.Join(dir, name))
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return // 已到文件系统根目录
+		}
+		dir = parent
+	}
+}
+
+// loadEnvFile 读取单个 .env 文件并注入环境变量。
+//
+// 刻意不用 godotenv.Load(path)，而是自己 ReadFile + 去 BOM + Unmarshal。
+// 原因是 godotenv 对 BOM 的容错为零：只要文件开头有 UTF-8 BOM（EF BB BF），
+// 它会直接报
+//
+//	unexpected character "»" in variable name near "\ufeff# ==="
+//
+// **并放弃整个文件 —— 一个变量都不加载**。表现出来就是
+// "配置文件明明在，程序却说缺少全部环境变量"，极难排查。
+//
+// 而 BOM 真的很常见：Windows PowerShell 5.1 的
+// `Set-Content -Encoding UTF8`、记事本"另存为 UTF-8"都会自动加 BOM。
+// 这个坑在本地真实踩过。
+//
+// 语义与 godotenv.Load 保持一致：**不覆盖已存在的环境变量**，
+// 这样生产环境用 systemd 注入的变量优先级高于 .env。
+func loadEnvFile(path string) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return // 文件不存在是正常情况
+	}
+
+	parsed, err := godotenv.Unmarshal(string(stripBOM(raw)))
+	if err != nil {
+		// 解析失败不致命：可能只是某一行格式不对，其余变量仍应生效
+		return
+	}
+
+	for k, v := range parsed {
+		if _, exists := os.LookupEnv(k); !exists {
+			_ = os.Setenv(k, v)
+		}
+	}
+}
+
+// stripBOM 去掉 UTF-8 BOM（EF BB BF）。
+func stripBOM(b []byte) []byte {
+	return bytes.TrimPrefix(b, []byte{0xEF, 0xBB, 0xBF})
+}
 
 func getEnv(key, def string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {

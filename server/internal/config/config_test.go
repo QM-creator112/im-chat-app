@@ -1,9 +1,13 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 // TestValidateRequiresDBPassword 验证缺 DB_PASSWORD 时启动就报错。
@@ -91,6 +95,100 @@ func TestIsProduction(t *testing.T) {
 	if (&Config{Env: "development"}).IsProduction() != false {
 		t.Error("development 不应识别为生产环境")
 	}
+}
+
+// TestStripBOM 是针对一个**真实踩过的坑**的回归测试。
+//
+// 现象：.env 文件明明存在，程序却报"缺少 DB_USER, DB_PASSWORD, JWT_SECRET"。
+// 根因：Windows PowerShell 5.1 的 `Set-Content -Encoding UTF8` 会写入
+// UTF-8 BOM（EF BB BF），而 godotenv 遇到 BOM 会整体解析失败、
+// **一个变量都不加载**，报错信息是：
+//
+//	unexpected character "»" in variable name near "\ufeff# ==="
+//
+// 修法：读取后先 stripBOM 再交给 godotenv.Unmarshal。
+func TestStripBOM(t *testing.T) {
+	withBOM := append([]byte{0xEF, 0xBB, 0xBF}, []byte("A=1\n")...)
+	withoutBOM := []byte("A=1\n")
+
+	if got := string(stripBOM(withBOM)); got != "A=1\n" {
+		t.Errorf("应剥掉 BOM，实际 %q", got)
+	}
+	// 没有 BOM 的内容不能被改动
+	if got := string(stripBOM(withoutBOM)); got != "A=1\n" {
+		t.Errorf("无 BOM 内容不应被修改，实际 %q", got)
+	}
+	// 只有部分 BOM 字节时不能误删
+	if got := string(stripBOM([]byte{0xEF, 0xBB})); got != string([]byte{0xEF, 0xBB}) {
+		t.Error("不完整的 BOM 不应被剥掉")
+	}
+}
+
+// TestUnmarshalDotEnvWithAndWithoutBOM 验证剥 BOM 之后确实能正常解析。
+func TestUnmarshalDotEnvWithAndWithoutBOM(t *testing.T) {
+	body := "DB_USER=im_app\nDB_PASSWORD=p@ss word\nJWT_SECRET=" + strings.Repeat("s", 40) + "\n"
+
+	// ① 有 BOM：不剥会失败
+	withBOM := string(append([]byte{0xEF, 0xBB, 0xBF}, []byte(body)...))
+	if _, err := godotenv.Unmarshal(withBOM); err == nil {
+		t.Log("注意：当前 godotenv 版本已能容忍 BOM（本测试仅记录行为）")
+	}
+
+	// ② 剥掉 BOM 后必须成功，且值正确
+	m, err := godotenv.Unmarshal(string(stripBOM([]byte(withBOM))))
+	if err != nil {
+		t.Fatalf("剥掉 BOM 后应解析成功，实际: %v", err)
+	}
+	if m["DB_USER"] != "im_app" {
+		t.Errorf("DB_USER 解析错误: %q", m["DB_USER"])
+	}
+	if m["DB_PASSWORD"] != "p@ss word" {
+		t.Errorf("含空格的值应被正确保留: %q", m["DB_PASSWORD"])
+	}
+	if len(m["JWT_SECRET"]) != 40 {
+		t.Errorf("JWT_SECRET 长度错误: %d", len(m["JWT_SECRET"]))
+	}
+}
+
+// TestLoadEnvFileDoesNotOverrideExisting 验证 .env 不会覆盖已存在的环境变量。
+//
+// 这条很重要：生产环境由 systemd 注入变量，优先级必须高于 .env。
+func TestLoadEnvFileDoesNotOverrideExisting(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, ".env")
+	if err := os.WriteFile(p, []byte("PROBE_KEY_FROM_ENV_FILE=from-file\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// 先设置一个同名环境变量
+	t.Setenv("PROBE_KEY_FROM_ENV_FILE", "from-process")
+	loadEnvFile(p)
+
+	if got := os.Getenv("PROBE_KEY_FROM_ENV_FILE"); got != "from-process" {
+		t.Errorf("已存在的环境变量不应被 .env 覆盖，实际 %q", got)
+	}
+}
+
+// TestLoadEnvFileInjectsNewKeys 验证未设置过的键会被注入。
+func TestLoadEnvFileInjectsNewKeys(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, ".env")
+	if err := os.WriteFile(p, []byte("PROBE_NEW_KEY_FROM_FILE=hello\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	os.Unsetenv("PROBE_NEW_KEY_FROM_FILE")
+	t.Cleanup(func() { os.Unsetenv("PROBE_NEW_KEY_FROM_FILE") })
+
+	loadEnvFile(p)
+
+	if got := os.Getenv("PROBE_NEW_KEY_FROM_FILE"); got != "hello" {
+		t.Errorf("新键应被注入，实际 %q", got)
+	}
+}
+
+// TestLoadEnvFileMissingFileIsNotFatal 验证文件不存在时静默返回（生产环境没有 .env）。
+func TestLoadEnvFileMissingFileIsNotFatal(t *testing.T) {
+	loadEnvFile(filepath.Join(t.TempDir(), "not-exist.env")) // 不应 panic
 }
 
 // TestDefaults 验证未设置环境变量时的默认值。
