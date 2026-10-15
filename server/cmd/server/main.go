@@ -26,6 +26,7 @@ import (
 	"github.com/QM-creator112/im-chat-app/server/internal/middleware"
 	"github.com/QM-creator112/im-chat-app/server/internal/service"
 	"github.com/QM-creator112/im-chat-app/server/internal/store"
+	"github.com/QM-creator112/im-chat-app/server/internal/ws"
 )
 
 // version 由编译期注入：
@@ -81,16 +82,27 @@ func run() error {
 	// 依赖方向：handler → service → store
 	userStore := store.NewUserStore(db)
 	deviceStore := store.NewDeviceStore(db)
+	friendStore := store.NewFriendStore(db)
 
 	authSvc := service.NewAuthService(
 		userStore, deviceStore,
 		cfg.JWT.Secret, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL,
 	)
+	friendSvc := service.NewFriendService(friendStore, userStore)
+
+	// WebSocket 网关。
+	//
+	// friendSvc.FriendIDs 被注入给 Hub 用于在线状态广播 ——
+	// 用函数注入而不是让 ws 包直接依赖 store，是为了守住架构文档的边界纪律
+	// （只有 service 层可以访问 store 层）。
+	hub := ws.NewHub(friendSvc.FriendIDs)
+	gateway := ws.NewGateway(hub, cfg.JWT.Secret, nil, cfg.AllowedOrigins)
 
 	authH := handler.NewAuthHandler(authSvc)
 	userH := handler.NewUserHandler(authSvc)
-	// Sprint 1 还没有 WebSocket，连接数传 nil，/healthz 会跳过该字段
-	healthH := handler.NewHealthHandler(db, rdb, version, nil)
+	friendH := handler.NewFriendHandler(friendSvc)
+	// /healthz 里的 wsConnections 来自 Hub —— 压测时可以直接从这里看承载量
+	healthH := handler.NewHealthHandler(db, rdb, version, hub.Connections)
 
 	// ---------- 6) 路由 ----------
 	if cfg.IsProduction() {
@@ -102,7 +114,7 @@ func run() error {
 	// 这样日志格式统一，便于 grep 与后续接入采集
 	r.Use(requestLogger())
 
-	registerRoutes(r, cfg, authH, userH, healthH)
+	registerRoutes(r, cfg, gateway, authH, userH, friendH, healthH)
 
 	// ---------- 7) 监听 + 优雅退出 ----------
 	srv := &http.Server{
@@ -131,13 +143,19 @@ func run() error {
 		slog.Info("收到退出信号，开始优雅退出", "signal", sig.String())
 	}
 
-	// 优雅退出：停止接收新请求，等在途请求处理完（最多 10 秒）
+	// 优雅退出：先停 HTTP（不再接受新请求、等在途请求处理完），
+	// 再关所有 WebSocket 连接。
+	//
+	// 顺序不能反：先关 WS 的话，正在处理的消息投递会因为连接消失而失败；
+	// 先停 HTTP 则保证没有新的消息进入系统，此时再关连接是干净的。
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		return fmt.Errorf("优雅退出超时: %w", err)
+		// HTTP 关不干净不应该阻止我们关掉长连接 —— 记录后继续
+		slog.Warn("HTTP 优雅退出超时，继续关闭 WebSocket 连接", "err", err)
 	}
+	hub.CloseAll()
 
 	slog.Info("服务已退出", "运行时长", time.Since(startedAt).Round(time.Second).String())
 	return nil
@@ -150,12 +168,19 @@ func run() error {
 func registerRoutes(
 	r *gin.Engine,
 	cfg *config.Config,
+	gateway *ws.Gateway,
 	authH *handler.AuthHandler,
 	userH *handler.UserHandler,
+	friendH *handler.FriendHandler,
 	healthH *handler.HealthHandler,
 ) {
 	// 健康检查：不需要鉴权，且不记访问日志（避免刷屏）
 	r.GET("/healthz", healthH.Health)
+
+	// ---------- WebSocket ----------
+	// token 走 query（浏览器 WebSocket API 不能自定义请求头），
+	// 鉴权在 gateway.Handle 内部完成
+	r.GET("/ws", gateway.Handle)
 
 	v1 := r.Group("/api/v1")
 
@@ -175,9 +200,10 @@ func registerRoutes(
 
 		authed.GET("/users/me", userH.Me)
 		authed.GET("/users", userH.Search)
-	}
 
-	// Sprint 2 会在这里加：r.GET("/ws", wsHandler.Handle)
+		authed.GET("/friends", friendH.List)
+		authed.POST("/friends", friendH.Add)
+	}
 }
 
 // setupLogger 配置结构化日志。

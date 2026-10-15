@@ -8,6 +8,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/QM-creator112/im-chat-app/server/internal/apicode"
 )
 
 // 业务错误码。与 docs/api.md §1.2 严格对应。
@@ -15,18 +17,22 @@ import (
 // 为什么不用 HTTP 状态码表达全部语义：
 // HTTP 状态码只有有限的几十个，无法区分"用户名已存在"和"用户名格式错误"。
 // 业务错误码给业务留了自己的空间。
+//
+// 真正的定义在 apicode 包（HTTP 层与 WebSocket 层共用）。
+// 这里做成别名，让 handler 内部的调用点保持简洁（handler.CodeOK），
+// 同时避免两处各写一遍数字。
 const (
-	CodeOK            = 0
-	CodeBadParam      = 1001
-	CodeUnauthorized  = 1002
-	CodeForbidden     = 1003
-	CodeUserExists    = 2001
-	CodeBadCredential = 2002
-	CodeBadRefresh    = 2003
-	CodeConvNotFound  = 3001
-	CodeNotMember     = 3002
-	CodeProcessing    = 4001
-	CodeInternal      = 5000
+	CodeOK            = apicode.OK
+	CodeBadParam      = apicode.BadParam
+	CodeUnauthorized  = apicode.Unauthorized
+	CodeForbidden     = apicode.Forbidden
+	CodeUserExists    = apicode.UserExists
+	CodeBadCredential = apicode.BadCredential
+	CodeBadRefresh    = apicode.BadRefresh
+	CodeConvNotFound  = apicode.ConvNotFound
+	CodeNotMember     = apicode.NotMember
+	CodeProcessing    = apicode.Processing
+	CodeInternal      = apicode.Internal
 )
 
 // Response 统一响应包装。

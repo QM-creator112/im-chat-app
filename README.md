@@ -17,13 +17,15 @@
 | 第 1 篇 立项 | ✅ [docs/01-立项.md](docs/01-立项.md) |
 | 第 2 篇 设计 | ✅ [架构](docs/02-设计.md) · [数据模型](docs/er.md) · [接口契约](docs/api.md) |
 | 产品原型 | ✅ [线框图](docs/prototype/wireframes.png) · [可交互原型](docs/prototype/prototype.html) |
-| Sprint 1 账号与鉴权 | 🔄 代码完成（`go vet` 通过 · 20 个测试全绿 · 二进制可编译）· 待建库后联调 |
-| Sprint 2 长连接网关 | ⬜ 未开始 |
+| Sprint 1 账号与鉴权 | 🔄 代码完成 · 待建库后联调 |
+| Sprint 2 长连接网关 | ✅ **代码完成且真实 WebSocket 端到端验证通过** |
 | Sprint 3 单聊可靠投递 | ⬜ 未开始 |
 | Sprint 4 前端 Vue 3 UI | ⬜ 未开始 |
 | Sprint 5 群聊 + 已读 | ⬜ 未开始 |
 | Sprint 6 AI 助手侧车 | ⬜ 未开始 |
 | 部署上线 | ⬜ 未开始 |
+
+> **状态标记说明**：✅ = 有可复现的验证证据（测试/实测输出）；🔄 = 代码写完但还没在真实依赖上跑通；⬜ = 未开始。
 
 **在线演示**：部署后填这里
 

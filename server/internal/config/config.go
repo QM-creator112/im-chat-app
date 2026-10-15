@@ -30,6 +30,14 @@ type Config struct {
 	Redis RedisConfig
 	JWT   JWTConfig
 	AI    AIConfig
+	// AllowedOrigins WebSocket 握手允许的 Origin 白名单。
+	//
+	// ⚠️ 为什么必须配：WebSocket **不受浏览器同源策略保护**，
+	// 任何网站都能发起跨站握手。不校验 Origin 的话，
+	// 攻击者可以用你的站点地址在自己页面上建立连接并冒充登录用户。
+	//
+	// 为空表示不校验 —— 仅限开发环境。
+	AllowedOrigins []string
 }
 
 // DBConfig 数据库配置。
@@ -102,6 +110,7 @@ func Load() (*Config, error) {
 		AI: AIConfig{
 			BaseURL: getEnv("AI_BASE_URL", ""),
 		},
+		AllowedOrigins: getEnvList("ALLOWED_ORIGINS"),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -244,4 +253,22 @@ func getEnvInt(key string, def int) int {
 		return def
 	}
 	return n
+}
+
+// getEnvList 读取逗号分隔的列表，例如：
+//
+//	ALLOWED_ORIGINS=https://im.example.com,https://www.im.example.com
+func getEnvList(key string) []string {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
