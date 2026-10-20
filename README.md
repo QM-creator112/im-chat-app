@@ -17,8 +17,8 @@
 | 第 1 篇 立项 | ✅ [docs/01-立项.md](docs/01-立项.md) |
 | 第 2 篇 设计 | ✅ [架构](docs/02-设计.md) · [数据模型](docs/er.md) · [接口契约](docs/api.md) |
 | 产品原型 | ✅ [线框图](docs/prototype/wireframes.png) · [可交互原型](docs/prototype/prototype.html) |
-| Sprint 1 账号与鉴权 | 🔄 代码完成 · 待建库后联调 |
-| Sprint 2 长连接网关 | ✅ **代码完成且真实 WebSocket 端到端验证通过** |
+| Sprint 1 账号与鉴权 | ✅ **完成**（真实环境端到端验收 12 项全通过：bcrypt 哈希 / 防枚举 / 双令牌 / 登出失效） |
+| Sprint 2 长连接网关 | ✅ **完成**（真实服务器 WebSocket 验收：presence 上下线广播 / 心跳 / 连接数 / 错误信封） |
 | Sprint 3 单聊可靠投递 | ⬜ 未开始 |
 | Sprint 4 前端 Vue 3 UI | ⬜ 未开始 |
 | Sprint 5 群聊 + 已读 | ⬜ 未开始 |
