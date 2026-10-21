@@ -213,3 +213,134 @@ describe('与真实后端的契约一致性', () => {
     }
   })
 })
+
+// ===========================================================================
+// Sprint 5：群管理接口的契约验证
+// ===========================================================================
+describe('群管理接口（Sprint 5）', () => {
+  let groupId = 0
+  let userCId = 0
+  const userC = {
+    username: `fe_c_${suffix}`,
+    password: 'Test1234',
+    nickname: `前端丙${suffix}`,
+  }
+
+  /** 让当前会话成为某个用户 */
+  async function loginAs(u: { username: string; password: string }): Promise<number> {
+    const auth = await api.login({ username: u.username, password: u.password })
+    saveSession(auth.accessToken, auth.refreshToken, {
+      id: auth.user.id,
+      username: auth.user.username,
+      nickname: auth.user.nickname,
+      avatarUrl: auth.user.avatarUrl,
+    })
+    return auth.user.id
+  }
+
+  itBackend('建群后会话列表能拿到 type=2 与 ownerId', async () => {
+    await loginAs(userA) // 确保是 userA 的身份
+    const me = await api.me()
+
+    // 先注册第三个用户备用
+    const regC = await api.register(userC)
+    userCId = regC.userId
+
+    const res = await api.createConversation({
+      type: 2,
+      title: `契约测试群${suffix}`,
+      memberIds: [idB],
+    })
+    groupId = res.conversationId
+    expect(groupId).toBeGreaterThan(0)
+
+    const page = await api.listConversations()
+    const group = page.items.find((c) => c.id === groupId)
+    expect(group, '会话列表里应能看到刚建的群').toBeTruthy()
+    expect(group?.type).toBe(2)
+    // 契约新增字段：ownerId
+    expect(group?.ownerId).toBe(me.id)
+    expect(group?.title).toBe(`契约测试群${suffix}`)
+    expect(group?.latestSeq).toBe(0)
+    expect(group?.unreadCount).toBe(0)
+  })
+
+  itBackend('拉人入群：新增数正确，已在群里的忽略（幂等）', async () => {
+    await loginAs(userA)
+
+    // 拉 userC 进群
+    const first = await api.addMembers(groupId, [userCId])
+    expect(first.added).toBe(1)
+
+    // 再拉一次同一个 —— 幂等，added=0
+    const second = await api.addMembers(groupId, [userCId])
+    expect(second.added).toBe(0)
+
+    const members = await api.listMembers(groupId)
+    expect(members.total).toBe(3) // owner + idB + userC
+    const ids = members.items.map((m) => m.userId)
+    expect(ids).toContain(userCId)
+    // 每个人的 lastReadSeq 都要是数字（前端靠它算「已读 N/M」）
+    for (const m of members.items) {
+      expect(typeof m.lastReadSeq).toBe('number')
+    }
+  })
+
+  itBackend('非成员不能拉人（3002）', async () => {
+    // 用 userC 之外的第四个用户尝试（复用 fe_x 那个「路人」）
+    const outsider = { username: `fe_x_${suffix}`, password: 'Test1234' }
+    await loginAs(outsider)
+    try {
+      await api.addMembers(groupId, [userCId])
+      throw new Error('非成员拉人应当被拒绝')
+    } catch (e) {
+      const err = e as ApiError
+      expect(err.code).toBe(3002)
+    }
+  })
+
+  itBackend('单聊不能拉人（1001）', async () => {
+    await loginAs(userA)
+    const dmId = await api.ensureDirectConversation(idB)
+    try {
+      await api.addMembers(dmId, [userCId])
+      throw new Error('单聊拉人应当被拒绝')
+    } catch (e) {
+      const err = e as ApiError
+      expect(err.code).toBe(1001)
+    }
+  })
+
+  itBackend('成员可以退群，退群后不在成员列表里', async () => {
+    await loginAs(userC)
+    // 退群前：userC 能看到这个群
+    let page = await api.listConversations()
+    expect(page.items.some((c) => c.id === groupId)).toBe(true)
+
+    await api.leaveGroup(groupId)
+
+    // 退群后：会话列表里没有它了
+    page = await api.listConversations()
+    expect(page.items.some((c) => c.id === groupId)).toBe(false)
+    // 也读不到消息了
+    await expect(api.listMessages(groupId, 0, 10)).rejects.toBeInstanceOf(ApiError)
+  })
+
+  itBackend('退群是幂等的（重复退群不报错）', async () => {
+    await loginAs(userC)
+    // 已经退过了，再退一次仍然成功
+    await expect(api.leaveGroup(groupId)).resolves.toBeDefined()
+  })
+
+  itBackend('群主不能退群（1001）', async () => {
+    await loginAs(userA)
+    try {
+      await api.leaveGroup(groupId)
+      throw new Error('群主退群应当被拒绝')
+    } catch (e) {
+      const err = e as ApiError
+      expect(err.code).toBe(1001)
+      expect(err.message).toContain('群主')
+    }
+  })
+})

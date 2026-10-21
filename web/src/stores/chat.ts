@@ -3,8 +3,10 @@ import { defineStore } from 'pinia'
 import { ElMessage } from 'element-plus'
 
 import * as api from '@/api'
+import { ConversationType } from '@/api/types'
 import type {
   Conversation,
+  Member,
   WsEnvelope,
   WsErrorData,
   WsPresenceData,
@@ -54,6 +56,14 @@ export const useChatStore = defineStore('chat', () => {
   const onlineUsers = ref<Set<number>>(new Set())
   /** 对方已读位置：convId → 对方读到的 seq */
   const peerReadSeq = ref<Record<number, number>>({})
+  /**
+   * 会话成员：convId → Member[]。
+   *
+   * 群聊的「已读 N/M」不额外开接口 —— `GET /members` 一次拿到所有人的
+   * lastReadSeq，之后靠 read_push 增量更新即可。
+   * 这也是当初把 lastReadSeq 放在成员表而不是消息表带来的直接好处。
+   */
+  const membersByConv = ref<Record<number, Member[]>>({})
 
   // ---------------- 派生 ----------------
   const activeConversation = computed<Conversation | null>(
@@ -121,7 +131,91 @@ export const useChatStore = defineStore('chat', () => {
     if (messages.value[convId] === undefined) {
       await loadInitialMessages(convId)
     }
+    // 群聊需要成员列表来算「已读 N/M」；换会话时总是重新拉，
+    // 因为期间可能有成员进出（拉人/退群）。
+    const conv = conversations.value.find((c) => c.id === convId)
+    if (conv?.type === ConversationType.GROUP) {
+      void loadMembers(convId)
+    }
     await markReadIfNeeded(convId)
+  }
+
+  /** 拉取会话成员（含每人的 lastReadSeq）。 */
+  async function loadMembers(convId: number): Promise<void> {
+    try {
+      const page = await api.listMembers(convId)
+      membersByConv.value = { ...membersByConv.value, [convId]: page.items }
+    } catch {
+      // 成员列表拉失败不影响聊天主流程，静默忽略（下次换会话会重试）
+    }
+  }
+
+  /**
+   * 群聊「已读 N/M」所需的数据。
+   *
+   * ⚠️ 语义（这里踩过一次坑，值得说明）：
+   *   M = **除发送者之外**的成员数（真正的接收者）
+   *   N = 其中 lastReadSeq >= seq 的人数
+   *
+   * 为什么把发送者排除：
+   *   发送消息**不会**自动推进发送者自己的 last_read_seq ——
+   *   后端的 Send 只分配 seq，不碰已读位置（已读是客户端的动作）。
+   *   如果把发送者算进分母，一条刚发出的群消息会显示「已读 1/4」，
+   *   看起来像"已经有人读了"，实际那 1 个人就是自己。
+   *   排除之后显示「已读 0/3」，语义准确：3 个接收者，还没人读。
+   */
+  function readCountOf(
+    convId: number,
+    seq: number,
+    senderId: number,
+  ): { read: number; total: number } {
+    const members = membersByConv.value[convId] ?? []
+    const receivers = members.filter((m) => m.userId !== senderId)
+    if (receivers.length === 0) return { read: 0, total: 0 }
+    let read = 0
+    for (const m of receivers) {
+      if (m.lastReadSeq >= seq) read += 1
+    }
+    return { read, total: receivers.length }
+  }
+
+  // ---------------- 群管理 ----------------
+
+  /** 建群：至少 2 个其他成员（加上自己就是 3 人群起）。 */
+  async function createGroup(title: string, memberIds: number[]): Promise<number> {
+    const res = await api.createConversation({
+      type: ConversationType.GROUP,
+      title,
+      memberIds,
+    })
+    await loadConversations()
+    await selectConversation(res.conversationId)
+    return res.conversationId
+  }
+
+  /** 往当前群拉人。 */
+  async function addMembersToActive(userIds: number[]): Promise<number> {
+    const convId = activeConvId.value
+    if (convId === null) return 0
+    const res = await api.addMembers(convId, userIds)
+    await loadMembers(convId)
+    return res.added
+  }
+
+  /** 退出当前群。成功后会从会话列表里移除并清空选中。 */
+  async function leaveActiveGroup(): Promise<void> {
+    const convId = activeConvId.value
+    if (convId === null) return
+    await api.leaveGroup(convId)
+    conversations.value = conversations.value.filter((c) => c.id !== convId)
+    const next = { ...messages.value }
+    delete next[convId]
+    messages.value = next
+    const nextMembers = { ...membersByConv.value }
+    delete nextMembers[convId]
+    membersByConv.value = nextMembers
+    activeConvId.value = conversations.value[0]?.id ?? null
+    if (activeConvId.value !== null) await selectConversation(activeConvId.value)
   }
 
   async function loadInitialMessages(convId: number): Promise<void> {
@@ -362,8 +456,21 @@ export const useChatStore = defineStore('chat', () => {
         const d = env.data as WsReadPushData
         const conv = conversations.value.find((c) => c.id === d.conversationId)
         if (conv) {
-          // 记录对方的已读位置（当前 UI 用「已读」标记自己发出的消息是否被看到）
+          // 记录对方的已读位置（单聊里用来显示「已读」）
           peerReadSeq.value = { ...peerReadSeq.value, [d.conversationId]: d.readSeq }
+        }
+        // 群聊：把该成员的 lastReadSeq 推到最新，「已读 N/M」能实时变化。
+        // 同样只前进不回退（与后端的 GREATEST 语义保持一致）。
+        const members = membersByConv.value[d.conversationId]
+        if (members !== undefined) {
+          membersByConv.value = {
+            ...membersByConv.value,
+            [d.conversationId]: members.map((m) =>
+              m.userId === d.userId
+                ? { ...m, lastReadSeq: Math.max(m.lastReadSeq, d.readSeq) }
+                : m,
+            ),
+          }
         }
         return
       }
@@ -427,6 +534,7 @@ export const useChatStore = defineStore('chat', () => {
     hasMore.value = {}
     onlineUsers.value = new Set()
     peerReadSeq.value = {}
+    membersByConv.value = {}
     for (const t of ackTimers.values()) clearTimeout(t)
     ackTimers.clear()
     reqToClient.clear()
@@ -448,6 +556,7 @@ export const useChatStore = defineStore('chat', () => {
     wsNextDelayMs,
     onlineUsers,
     peerReadSeq,
+    membersByConv,
     // getters
     activeConversation,
     activeMessages,
@@ -465,6 +574,11 @@ export const useChatStore = defineStore('chat', () => {
     stopSocket,
     syncAllConversations,
     startDirectConversation,
+    loadMembers,
+    readCountOf,
+    createGroup,
+    addMembersToActive,
+    leaveActiveGroup,
     reset,
   }
 })

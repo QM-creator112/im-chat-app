@@ -241,6 +241,7 @@ SELECT
          WHERE cm2.conversation_id = c.id AND cm2.user_id <> ?
          LIMIT 1
     ), '')                                        AS title,
+    c.owner_id                                    AS owner_id,
     COALESCE(m.content, '')                       AS last_msg,
     COALESCE(m.created_at, c.created_at)          AS last_msg_at,
     c.next_seq                                    AS latest_seq,
@@ -263,7 +264,7 @@ SELECT
 	for rows.Next() {
 		var it model.ConversationListItem
 		var lastAt sql.NullTime
-		if err := rows.Scan(&it.ID, &it.Type, &it.Title, &it.LastMsg, &lastAt,
+		if err := rows.Scan(&it.ID, &it.Type, &it.Title, &it.OwnerID, &it.LastMsg, &lastAt,
 			&it.LatestSeq, &it.MyLastReadSeq, &it.UnreadCount); err != nil {
 			return nil, err
 		}

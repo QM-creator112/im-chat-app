@@ -77,6 +77,24 @@ export function listMembers(convId: number): Promise<Page<Member>> {
   return http.get(`/conversations/${convId}/members`)
 }
 
+// ---------- 群管理（Sprint 5）----------
+
+/**
+ * 拉人入群。已存在的成员会被忽略（幂等），返回真正新增的人数。
+ * 只有群成员能操作；非成员会被后端拒绝（3002）。
+ */
+export function addMembers(convId: number, userIds: number[]): Promise<{ added: number }> {
+  return http.post(`/conversations/${convId}/members`, { userIds })
+}
+
+/**
+ * 退群。群主不能退（后端返回 1001），要先转让群主或解散群。
+ * 历史消息保留，只是以后收不到新消息。
+ */
+export function leaveGroup(convId: number): Promise<unknown> {
+  return http.del(`/conversations/${convId}/members/me`)
+}
+
 // ---------- 消息 ----------
 
 /**

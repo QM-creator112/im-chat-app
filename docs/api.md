@@ -59,7 +59,7 @@
 
 ## 二、REST 接口
 
-### 2.1 接口清单（15 个）
+### 2.1 接口清单（17 个）
 
 | # | 方法 | 路径 | 鉴权 | 请求 | 响应 `data` |
 | --- | --- | --- | --- | --- | --- |
@@ -77,7 +77,14 @@
 | 12 | GET | `/conversations/:id/sync` | ✓ | `?sinceSeq=` | `{items:[Message], latestSeq, hasGap}` |
 | 13 | POST | `/conversations/:id/read` | ✓ | `{readSeq}` | `{}` |
 | 14 | GET | `/conversations/:id/members` | ✓ | — | `{items:[Member]}` |
-| 15 | GET | `/healthz` | ✗ | — | `{status, version, uptimeSeconds, checks}` |
+| 15 | **POST** | **`/conversations/:id/members`** | ✓ | `{userIds:[]}` | `{added}` |
+| 16 | **DELETE** | **`/conversations/:id/members/me`** | ✓ | — | `{}` |
+| 17 | GET | `/healthz` | ✗ | — | `{status, version, uptimeSeconds, checks}` |
+
+> **#15 / #16 是 Sprint 5 新增的群管理接口。**
+> `Member.lastReadSeq` 让前端能自行算出群聊的「已读 2/4」——
+> **不需要额外接口**：`GET /members` 一次拿到所有人的已读位置，
+> 之后靠 `read_push` 增量更新即可。
 
 ### 2.2 数据结构
 
@@ -94,6 +101,7 @@
   "id": 55,
   "type": 1,
   "title": "张伟",
+  "ownerId": 0,
   "lastMsg": "明天三点见",
   "lastMsgAt": 1791197597369,
   "latestSeq": 42,
@@ -101,6 +109,9 @@
   "unreadCount": 2
 }
 ```
+
+> `ownerId`：群主 ID，**单聊为 0**。前端用它区分群主与普通成员 ——
+> 群主不能退群，UI 上要显示不同的操作（隐藏「退群」按钮）。
 
 **Message**
 
@@ -195,6 +206,36 @@
 ```
 
 **语义**：把 `conversation_members.last_read_seq` 推进到 `max(当前值, readSeq)` —— **只前进，不回退**。
+
+#### POST `/conversations/:id/members`（拉人入群）
+
+```json
+// 请求
+{ "userIds": [7, 8] }
+// 成功
+{ "code": 0, "message": "ok", "data": { "added": 2 } }
+```
+
+| 规则 | 说明 |
+| --- | --- |
+| 只有群聊能拉人 | 单聊（`type=1`）返回 `1001` |
+| **只有群成员能拉人** | 非成员返回 `3002`，否则任何人猜到 id 就能往群里塞人 |
+| 已在群里的用户自动忽略 | 用 `INSERT IGNORE`，重复拉人是**幂等**的，`added` 只统计真正新增的 |
+| 每个 userId 必须存在 | 有无效用户时整体失败（不写入任何一条），避免半成功 |
+
+#### DELETE `/conversations/:id/members/me`（退群）
+
+```json
+{ "code": 0, "message": "ok", "data": {} }
+```
+
+| 规则 | 说明 |
+| --- | --- |
+| 只有群聊能退 | 单聊返回 `1001` |
+| **群主不能退群** | 返回 `1001`「群主不能退群，请先转让群主或解散群」。理由：否则群会变成无主状态，没人能再管 |
+| 退群后不再收到该群消息 | 投递按 `conversation_members` 查收件人，删行即生效 |
+| **历史消息保留** | `messages` 不删 —— 退群只影响「以后能不能收」，不影响已经发生的记录 |
+| 幂等 | 重复退群返回成功（`RowsAffected=0` 不报错） |
 
 ---
 

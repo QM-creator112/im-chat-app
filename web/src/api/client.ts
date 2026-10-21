@@ -147,4 +147,5 @@ export const http = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown, retry = true) =>
     request<T>(path, { method: 'POST', body, retryOnUnauthorized: retry }),
+  del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 
+import { ConversationType } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import type { ChatMessage } from '@/utils/chatMessage'
@@ -36,6 +37,27 @@ const peerReadSeq = computed<number>(() => {
   const id = chat.activeConvId
   return id === null ? 0 : (chat.peerReadSeq[id] ?? 0)
 })
+
+const isGroup = computed(() => chat.activeConversation?.type === ConversationType.GROUP)
+
+/** 我发出的最后一条**已确认**消息的 seq —— 群聊只在这条上显示已读人数 */
+const lastMineSeq = computed<number>(() => {
+  let seq = 0
+  for (const m of messages.value) {
+    if (isMine(m) && m.seq > seq) seq = m.seq
+  }
+  return seq
+})
+
+/** 群聊「已读 N/M」——N/M 只统计**接收者**（排除发送者自己） */
+function groupReadText(seq: number, senderId: number): string {
+  const convId = chat.activeConvId
+  if (convId === null) return ''
+  const { read, total } = chat.readCountOf(convId, seq, senderId)
+  if (total === 0) return ''
+  if (read >= total) return `全部已读`
+  return `已读 ${read}/${total}`
+}
 
 function isRead(m: ChatMessage): boolean {
   return m.seq > 0 && m.seq <= peerReadSeq.value
@@ -120,8 +142,15 @@ defineExpose({ scrollToBottom })
             </span>
           </template>
           <template v-else>
-            <span v-if="isRead(m)" class="state read">已读</span>
-            <span v-else class="state sent">已发送</span>
+            <!-- 群聊：显示「已读 N/M」，反映这条消息被多少成员读到 -->
+            <span v-if="isGroup && m.seq === lastMineSeq" class="state read">
+              {{ groupReadText(m.seq, m.senderId) }}
+            </span>
+            <!-- 单聊：对方读到就显示「已读」 -->
+            <template v-else>
+              <span v-if="isRead(m)" class="state read">已读</span>
+              <span v-else class="state sent">已发送</span>
+            </template>
           </template>
         </div>
       </div>

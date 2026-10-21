@@ -55,6 +55,8 @@ export interface Conversation {
   id: number
   type: number
   title: string
+  /** 群主 ID；单聊为 0。前端据此决定是否显示「退群」（群主不能退） */
+  ownerId: number
   lastMsg: string
   /** Unix 毫秒 */
   lastMsgAt: number

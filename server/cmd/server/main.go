@@ -229,6 +229,10 @@ func registerRoutes(
 		authed.POST("/conversations", convH.Create)
 		authed.GET("/conversations/:id/members", convH.Members)
 
+		// ---- Sprint 5：群管理 ----
+		authed.POST("/conversations/:id/members", convH.AddMembers)
+		authed.DELETE("/conversations/:id/members/me", convH.Leave)
+
 		authed.GET("/conversations/:id/messages", msgH.History)
 		authed.GET("/conversations/:id/sync", msgH.Sync)
 		authed.POST("/conversations/:id/read", msgH.MarkRead)

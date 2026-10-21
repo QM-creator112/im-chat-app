@@ -51,9 +51,12 @@ type Conversation struct {
 
 // ConversationListItem 会话列表项（带最后一条消息与未读数）。
 type ConversationListItem struct {
-	ID            uint64 `json:"id"`
-	Type          uint8  `json:"type"`
-	Title         string `json:"title"`
+	ID    uint64 `json:"id"`
+	Type  uint8  `json:"type"`
+	Title string `json:"title"`
+	// OwnerID 群主 ID（单聊为 0）。
+	// 前端需要它来区分「群主」与普通成员：群主不能退群，UI 上要显示不同的操作。
+	OwnerID       uint64 `json:"ownerId"`
 	LastMsg       string `json:"lastMsg"`
 	LastMsgAt     int64  `json:"lastMsgAt"` // Unix 毫秒
 	LatestSeq     uint64 `json:"latestSeq"`
