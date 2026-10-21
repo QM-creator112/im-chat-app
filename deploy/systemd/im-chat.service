@@ -1,0 +1,44 @@
+[Unit]
+Description=IM Chat Server (Go)
+Documentation=https://github.com/QM-creator112/im-chat-app
+After=network-online.target mysql.service redis-server.service
+Wants=network-online.target mysql.service redis-server.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/im-chat
+EnvironmentFile=/opt/im-chat/im-chat.env
+ExecStart=/opt/im-chat/im-server-linux
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=im-chat
+
+# 优雅退出：SIGTERM 时给 15 秒让现有连接处理完
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# ===== 安全加固（纵深防御）=====
+# 不允许提升权限（setuid/setgid 无效）
+NoNewPrivileges=true
+# 私有 /tmp，与系统隔离
+PrivateTmp=true
+# 文件系统只读，只有 /opt/im-chat 可写
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/im-chat
+# 禁止访问内核日志、禁止加载内核模块
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+# 限制可用的地址族（只允许 IPv4/IPv6/Unix）
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# ===== 资源限制（防止单服务拖垮整机）=====
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

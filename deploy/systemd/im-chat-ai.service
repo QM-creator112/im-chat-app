@@ -1,0 +1,35 @@
+[Unit]
+Description=IM Chat AI Sidecar (FastAPI)
+Documentation=https://github.com/QM-creator112/im-chat-app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/opt/im-chat/ai
+EnvironmentFile=/opt/im-chat/ai.env
+# ⚠️ 只监听 127.0.0.1：侧车不对外暴露，只有 Go 服务通过本机回环调用它。
+#    安全组里也不开 8090。
+ExecStart=/opt/im-chat/ai/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8090 --workers 1
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=im-chat-ai
+
+KillSignal=SIGTERM
+TimeoutStopSec=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/im-chat/ai
+ProtectKernelTunables=true
+ProtectKernelModules=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

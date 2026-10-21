@@ -71,3 +71,6 @@ tmp/
 temp/
 *.tmp
 *.bak
+
+# ---- 发布产物（本地打包目录，含 29MB 二进制与 tarball，不进仓库）----
+build/

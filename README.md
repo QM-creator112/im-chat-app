@@ -24,7 +24,8 @@
 | Sprint 5 群聊 + 已读 | ✅ **完成**（后端 16 项单测 + **真实 WS 验收 38 项全过**：4 人群 / 3 端在线投递 / 已读 1/3→2/3 / 退群后收不到 / 群主不能退） |
 | Sprint 6 AI 助手侧车 | ✅ **完成**（Python FastAPI 侧车 11 项 + 真实 WS 验收 30 项全过：`@AI` 触发 / 系统消息落库 / 停掉侧车降级 / 恢复） |
 | 第 5 篇 测试与压测 | ✅ **完成**（后端 107 测试 + 前端 72 + 侧车 11；**四轮真实压测**，见 [docs/05-压测报告.md](docs/05-压测报告.md)） |
-| 部署上线 | ⬜ 未开始（第 6 篇） |
+| 第 6 篇 部署物料 | ✅ **完成**（systemd / Nginx / 发布 / 回滚 / 备份 / 验收脚本；已做 `sh -n` + 真实 `nginx -t` + 交叉编译 + 纯环境变量启动验证，见 [deploy/README.md](deploy/README.md)） |
+| 公网部署（需云服务器） | ⬜ **待买服务器** |
 
 > **状态标记说明**：✅ = 有可复现的验证证据（测试/实测输出）；🔄 = 代码写完但还没在真实依赖上跑通；⬜ = 未开始。
 
@@ -101,6 +102,27 @@
 .\build\loadtest_round.ps1 -Label r1_200  -Conns 200  -PerConn 10 -RampUp 5s  -Hold 3s
 .\build\loadtest_round.ps1 -Label r4_cap   -Conns 5000 -PerConn 0  -RampUp 20s -Hold 25s
 ```
+
+## 部署（第 6 篇）
+
+完整手册见 **[deploy/README.md](deploy/README.md)**。
+
+```powershell
+# 本地打包（交叉编译 linux/amd64 + 前端构建 + 密钥扫描 + 打包）
+.\deploy\local\release.ps1
+
+# 上传后由服务器端脚本发布（原子切换 + 健康检查 + 失败自动回滚）
+scp build\release\im-chat-v0.7.0.tar.gz deploy@<IP>:/tmp/
+ssh deploy@<IP> "sudo bash /opt/im-chat/deploy.sh /tmp/im-chat-v0.7.0.tar.gz"
+```
+
+| 组件 | 文件 | 关键点 |
+| --- | --- | --- |
+| systemd | `deploy/systemd/im-chat.service` | `Restart=always` + `NoNewPrivileges` + `ProtectSystem=strict` |
+| Nginx | `deploy/nginx/im-chat.conf` | **WebSocket 三件套**：`Upgrade` 头 / `proxy_read_timeout 300s` / `proxy_buffering off` |
+| 发布 | `deploy/scripts/deploy.sh` | 先传临时名再 `mv` 原子切换，保留 `.prev`，健康检查失败**自动回滚** |
+| 备份 | `deploy/scripts/backup.sh` | 每天自动备份，**并恢复到临时库验证可用** |
+| 验收 | `deploy/scripts/verify-production.sh` | 18 条上线检查清单自动化 |
 
 ## 快速开始
 
