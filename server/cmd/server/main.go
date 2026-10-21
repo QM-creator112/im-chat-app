@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -180,7 +182,7 @@ func registerRoutes(
 	// ---------- WebSocket ----------
 	// token 走 query（浏览器 WebSocket API 不能自定义请求头），
 	// 鉴权在 gateway.Handle 内部完成
-	r.GET("/ws", gateway.Handle)
+	r.GET(wsPath, gateway.Handle)
 
 	v1 := r.Group("/api/v1")
 
@@ -229,7 +231,10 @@ func requestLogger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		path := c.Request.URL.Path
-		query := c.Request.URL.RawQuery
+		// ⚠️ query 里可能有 access token（WebSocket 握手走 ?token=），
+		// 必须先脱敏再进日志，否则令牌会被长期留存。
+		query := redactQuery(c.Request.URL.RawQuery)
+		isWebSocket := path == wsPath
 
 		c.Next()
 
@@ -258,6 +263,13 @@ func requestLogger() gin.HandlerFunc {
 			slog.Error("请求失败", attrs...)
 		case c.Writer.Status() >= 400:
 			slog.Warn("请求被拒绝", attrs...)
+		case isWebSocket:
+			// ⚠️ WebSocket 的「请求耗时」等于**连接的存活时长**：
+			// 用户聊了 10 分钟，这里就是 600000ms。
+			// 如果不排除，每一次正常断开都会记一条「慢请求」，
+			// 把真正有用的慢查询告警彻底淹没 —— 这是从真实日志里发现的缺陷。
+			attrs = append(attrs, "ws_duration_ms", latency.Milliseconds())
+			slog.Info("ws 会话结束", attrs...)
 		case latency > 100*time.Millisecond:
 			// 慢请求告警：索引或连接池问题的早期信号
 			slog.Warn("慢请求", attrs...)
@@ -265,6 +277,50 @@ func requestLogger() gin.HandlerFunc {
 			slog.Info("请求完成", attrs...)
 		}
 	}
+}
+
+// wsPath WebSocket 升级路由的路径。
+//
+// 单独定义成常量，因为它在两处被引用（路由注册 + 日志分类），
+// 写两遍字符串容易改一处漏一处。
+const wsPath = "/ws"
+
+// sensitiveQueryKeys 需要在日志里脱敏的 query 参数名。
+//
+// WebSocket 握手用 ?token=<accessToken>，如果不脱敏，
+// 每个连接的令牌都会被明文写进日志并长期留存 —— 日志一旦泄露就等于令牌泄露。
+var sensitiveQueryKeys = map[string]bool{
+	"token":         true,
+	"access_token":  true,
+	"refresh_token": true,
+	"password":      true,
+}
+
+// redactQuery 把 query string 里的敏感参数值替换成 ***。
+//
+// 输入：token=eyJhbGci...&foo=1
+// 输出：token=***&foo=1
+//
+// 解析失败时（极少数畸形 query）整体返回 ***，宁可丢信息也不泄露。
+func redactQuery(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return "***"
+	}
+	changed := false
+	for k := range values {
+		if sensitiveQueryKeys[strings.ToLower(k)] {
+			values.Set(k, "***")
+			changed = true
+		}
+	}
+	if !changed {
+		return raw
+	}
+	return values.Encode()
 }
 
 // printBanner 启动时打印可点击的地址。
