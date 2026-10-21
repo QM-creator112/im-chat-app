@@ -131,3 +131,59 @@ MySQL 和 Redis 是否暴露 / ufw / 备份 / 日志 / 配置文件权限），
 | 发布有秒级中断 | 单实例重启。客户端会断线重连（Sprint 4 做的），所以体验接近无缝，但**不是真正的零停机**。 |
 | AI 侧车可能是 mock 模式 | 没配 `LLM_API_KEY` 时返回带 `[MOCK]` 标记的内容，**不代表模型能力**。 |
 | 单机部署 | 没有主从、没有负载均衡。挂了就是挂了（`Restart=always` 能兜住崩溃，兜不住宕机）。 |
+---
+
+## 9. 没有服务器时，怎么验证 Nginx 配置？（**本机 nginx + 公网隧道**）
+
+那三个 WebSocket 坑光看文档是不够的 —— **必须真的让一条 WS 连接穿过去**。
+买服务器之前，可以用本机的 Windows 版 nginx 把这条路走通。
+
+### 9.1 本机验证（脚本已封装）
+
+```powershell
+# 前置：后端已在 127.0.0.1:8080 跑起来，前端已 npm run build
+powershell -ExecutionPolicy Bypass -File deploy\local\verify-nginx-local.ps1
+```
+
+脚本做 9 步、18 项断言：
+
+| 步骤 | 验证内容 |
+| --- | --- |
+| 1-2 | 准备纯 ASCII 路径（nginx for Windows **不支持中文路径**，用目录联接 `D:\imngx` 指向工作区）|
+| 2 | `nginx -t` 退出码必须为 0 |
+| 4 | 静态文件 / `/api` 代理 / `/healthz` / `/chat` SPA 回落 |
+| 5 | **坑 #1**：WS 握手返回 `Open`（缺 `Upgrade` 头会 400）|
+| 6 | **坑 #3**：`send_ack` 往返成功（缺 `proxy_buffering off` 会明显延迟）|
+| 7 | **坑 #2**：空闲 N 秒后连接仍 `Open`（默认 `proxy_read_timeout 60s` 会静默断开）|
+| 8 | 检查 `access.log` 里出现 `101 Switching Protocols` |
+
+**实测结果：18/18 PASS。** access.log 里的证据：
+
+```text
+"GET /ws?token=*** HTTP/1.1" 101 338
+```
+
+> 脚本只停自己启动的 nginx（读 `logs/nginx.pid`），不会误杀别人正在用的实例。
+
+### 9.2 公网验证（无需买服务器）
+
+用 `localhost.run`（SSH 隧道，**不需要注册**）把本机 80 端口映射到公网：
+
+```powershell
+ssh -o StrictHostKeyChecking=no -R 80:localhost:80 nokey@localhost.run
+# 输出里会给出一个 https://xxxx.lhr.life 地址
+```
+
+**实测结果**（2026-10-21）：
+
+| 验证 | 结果 |
+| --- | --- |
+| 公网 HTTPS 首页 | `GET https://xxxx.lhr.life/` → 200，页面正常 |
+| 公网 API | `/api/v1/auth/login` → `code=0` |
+| **公网 WSS 握手** | `wss://xxxx.lhr.life/ws` → Open（TLS + Upgrade + nginx 全链路通）|
+| 公网消息往返 | `send_ack` seq 递增，往返 697ms |
+| **公网空闲 70 秒** | 连接仍存活，再发消息成功 |
+
+> ⚠️ **这只证明「配置正确、公网能访问」，不等于「部署到云服务器」。**
+> 隧道地址是临时的（进程一停就失效），也不验证 systemd / 域名 / 长期稳定性。
+> **简历和面试里要明确区分这两件事。**
