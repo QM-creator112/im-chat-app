@@ -1,0 +1,221 @@
+<script setup lang="ts">
+import { computed, nextTick, ref, watch } from 'vue'
+
+import { useAuthStore } from '@/stores/auth'
+import { useChatStore } from '@/stores/chat'
+import type { ChatMessage } from '@/utils/chatMessage'
+
+const auth = useAuthStore()
+const chat = useChatStore()
+
+const scrollRef = ref<HTMLElement | null>(null)
+
+const messages = computed<ChatMessage[]>(() => chat.activeMessages)
+const myId = computed<number>(() => auth.user?.id ?? 0)
+
+function isMine(m: ChatMessage): boolean {
+  return m.senderId === myId.value
+}
+
+function formatTime(ms: number): string {
+  if (!ms) return ''
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** 是否显示时间分隔：与上一条间隔超过 5 分钟 */
+function showTime(index: number): boolean {
+  if (index === 0) return true
+  const cur = messages.value[index]
+  const prev = messages.value[index - 1]
+  if (!cur || !prev) return false
+  return cur.createdAt - prev.createdAt > 5 * 60 * 1000
+}
+
+const peerReadSeq = computed<number>(() => {
+  const id = chat.activeConvId
+  return id === null ? 0 : (chat.peerReadSeq[id] ?? 0)
+})
+
+function isRead(m: ChatMessage): boolean {
+  return m.seq > 0 && m.seq <= peerReadSeq.value
+}
+
+/**
+ * 滚到底部。
+ *
+ * 只在用户本来就在底部附近时才自动滚 —— 否则用户正在往上翻历史，
+ * 来了新消息把他强行拽回底部，体验很差。
+ */
+function scrollToBottom(smooth = false): void {
+  void nextTick(() => {
+    const el = scrollRef.value
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+  })
+}
+
+function nearBottom(): boolean {
+  const el = scrollRef.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 120
+}
+
+watch(
+  () => messages.value.length,
+  (_n, oldLen) => {
+    if (oldLen === undefined || oldLen === 0 || nearBottom()) {
+      scrollToBottom()
+    }
+  },
+)
+
+watch(
+  () => chat.activeConvId,
+  () => {
+    scrollToBottom()
+  },
+)
+
+function retry(m: ChatMessage): void {
+  chat.retryMessage(m.clientMsgId)
+}
+
+defineExpose({ scrollToBottom })
+</script>
+
+<template>
+  <div ref="scrollRef" class="msg-scroll">
+    <!-- 向上翻页 -->
+    <div v-if="chat.hasMore[chat.activeConvId ?? 0]" class="load-more">
+      <el-button link type="primary" :loading="chat.loadingMessages" @click="chat.loadMoreHistory()">
+        加载更早的消息
+      </el-button>
+    </div>
+
+    <el-empty
+      v-if="messages.length === 0 && !chat.loadingMessages"
+      description="还没有消息，说点什么吧"
+      :image-size="72"
+    />
+
+    <div v-for="(m, i) in messages" :key="m.clientMsgId + '-' + m.seq" class="msg-row">
+      <div v-if="showTime(i)" class="msg-time">{{ formatTime(m.createdAt) }}</div>
+
+      <div class="msg-line" :class="isMine(m) ? 'mine' : 'peer'">
+        <div class="bubble" :class="isMine(m) ? 'bubble-mine' : 'bubble-peer'">
+          <div v-if="!isMine(m)" class="sender">{{ m.senderName || '对方' }}</div>
+          <div class="content">{{ m.content }}</div>
+        </div>
+
+        <!-- 三态指示（只对我自己发的消息显示） -->
+        <div v-if="isMine(m)" class="meta">
+          <template v-if="m.status === 'sending'">
+            <span class="state sending">发送中…</span>
+          </template>
+          <template v-else-if="m.status === 'failed'">
+            <span class="state failed">
+              发送失败
+              <el-link type="danger" :underline="false" @click="retry(m)">· 点击重试</el-link>
+            </span>
+          </template>
+          <template v-else>
+            <span v-if="isRead(m)" class="state read">已读</span>
+            <span v-else class="state sent">已发送</span>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.msg-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 8px;
+  background: #f7f9fc;
+}
+
+.load-more {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.msg-time {
+  text-align: center;
+  font-size: 11px;
+  color: var(--im-text-weak);
+  margin: 10px 0 8px;
+}
+
+.msg-line {
+  display: flex;
+  margin-bottom: 12px;
+}
+
+.msg-line.mine {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.msg-line.peer {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.bubble {
+  max-width: min(70%, 520px);
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.55;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.bubble-mine {
+  background: var(--im-bubble-mine);
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+
+.bubble-peer {
+  background: var(--im-bubble-peer);
+  color: var(--im-text);
+  border: 1px solid var(--im-border);
+  border-bottom-left-radius: 3px;
+}
+
+.sender {
+  font-size: 11px;
+  color: var(--im-text-weak);
+  margin-bottom: 3px;
+}
+
+.content {
+  white-space: pre-wrap;
+}
+
+.meta {
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+.state.sending {
+  color: var(--im-text-weak);
+}
+
+.state.sent {
+  color: var(--im-text-weak);
+}
+
+.state.read {
+  color: var(--im-primary-light);
+  font-weight: 600;
+}
+
+.state.failed {
+  color: var(--im-failed);
+}
+</style>

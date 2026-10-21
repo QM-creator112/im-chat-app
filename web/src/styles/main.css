@@ -1,0 +1,57 @@
+/* ============================================================================
+ * 全局样式
+ *
+ * 配色与产品原型（docs/prototype/wireframes.png）一致：
+ *   主色 #1F3864（深蓝）· 辅色 #2E74B5 · 强调 #E6F0FA
+ * ========================================================================== */
+
+:root {
+  --im-primary: #1f3864;
+  --im-primary-light: #2e74b5;
+  --im-bg: #f5f7fa;
+  --im-bg-sidebar: #ffffff;
+  --im-border: #e4e7ed;
+  --im-text: #1f2329;
+  --im-text-weak: #8a919f;
+  --im-bubble-mine: #1f3864;
+  --im-bubble-peer: #ffffff;
+  --im-online: #52c41a;
+  --im-offline: #bfbfbf;
+  --im-failed: #e54d42;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  color: var(--im-text);
+  background: var(--im-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 会话列表 / 消息区的滚动条收窄一点，避免抢视觉 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d0d5dd;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b8bfcc;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

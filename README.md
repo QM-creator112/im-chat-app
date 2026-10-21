@@ -20,7 +20,7 @@
 | Sprint 1 账号与鉴权 | ✅ **完成**（真实环境端到端验收 12 项全通过：bcrypt 哈希 / 防枚举 / 双令牌 / 登出失效） |
 | Sprint 2 长连接网关 | ✅ **完成**（真实服务器 WebSocket 验收：presence 上下线广播 / 心跳 / 连接数 / 错误信封） |
 | Sprint 3 单聊可靠投递 | ✅ **完成**（真实环境 60 项验收全通过：幂等 / 事务内 seq / 增量补拉 / 分页 / 已读 / 鉴权） |
-| Sprint 4 前端 Vue 3 UI | ⬜ 未开始 |
+| Sprint 4 前端 Vue 3 UI | ✅ **完成**（类型检查 / 62 个测试 / 生产构建 / 真实后端契约测试 8 项 / dev 代理实测打通） |
 | Sprint 5 群聊 + 已读 | ⬜ 未开始 |
 | Sprint 6 AI 助手侧车 | ⬜ 未开始 |
 | 部署上线 | ⬜ 未开始 |
@@ -36,7 +36,8 @@
 - [x] **单聊消息可靠投递**（三层幂等去重 + 事务内分配会话内单调序列号）
 - [x] **服务端增量补拉 `/sync`**（含 `hasGap` 降级语义）
 - [x] 会话列表（最后一条消息 / 未读数）、历史消息游标分页、已读上报
-- [ ] **前端断线自动重连**（指数退避 + 随机抖动 · Sprint 4）
+- [x] **前端断线自动重连**（指数退避 1→2→4→8→16→30s + ±20% 随机抖动）+ 重连后按游标补拉
+- [x] 前端消息三态（发送中 / 已发送 / 失败重试）+ 乐观更新 + `clientMsgId` 重试复用
 - [ ] 群聊（Sprint 5）· 已读回执推送已就绪
 - [ ] AI 助手（会话总结，独立侧车服务 · Sprint 6）
 - [x] 结构化日志 + 健康检查
@@ -119,6 +120,26 @@ npm install
 npm run dev
 # 打开 http://localhost:5173
 ```
+
+> **Windows 上构建前端报 `[vite:esbuild-transpile] remove ...Temp\esbuild-xxx: Access is denied`**
+> 这是 esbuild 无法删除系统 temp 下的自身副本（常见于杀软/受限环境）。把临时目录指到工作区内即可：
+> ```powershell
+> $env:TEMP = "$PWD\..\.tmp"; $env:TMP = $env:TEMP
+> npm run build
+> ```
+> `npm run dev` 不受影响，只有生产构建会用到临时文件。
+
+### 前端验证命令
+
+```powershell
+cd web
+npm run type-check   # vue-tsc 类型检查
+npm test             # vitest 单元测试（退避 / UUIDv7 / 消息去重 / WS 重连状态机）
+npm run build        # 生产构建
+```
+
+> `src/api/contract.test.ts` 会连真实后端验证「前端代码 ↔ 接口契约」一致性；
+> **后端没启动时这些用例会 SKIP（不是假通过）**。
 
 ## 目录结构
 

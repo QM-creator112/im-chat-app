@@ -62,24 +62,13 @@ jobs:
 
   # ==================== 前端 ====================
   web:
-    name: 前端类型检查与构建
+    name: 前端类型检查、测试与构建
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 检查 web 目录是否存在
-        id: check
-        run: |
-          if [ -f web/package.json ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "web/ 还没有初始化（Sprint 4 才建），跳过前端检查"
-          fi
-
       - name: 安装 Node
-        if: steps.check.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -87,16 +76,19 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: 安装依赖
-        if: steps.check.outputs.exists == 'true'
         working-directory: web
         run: npm ci
 
-      - name: 类型检查
-        if: steps.check.outputs.exists == 'true'
+      - name: 类型检查（vue-tsc）
         working-directory: web
         run: npm run type-check
 
-      - name: 构建
-        if: steps.check.outputs.exists == 'true'
+      # 单元测试：退避抖动、UUIDv7、消息去重、WebSocket 重连状态机
+      # 契约测试（src/api/contract.test.ts）需要后端在线，CI 里会 **SKIP** 而不是假通过
+      - name: 单元测试（vitest）
+        working-directory: web
+        run: npm test
+
+      - name: 生产构建
         working-directory: web
         run: npm run build
