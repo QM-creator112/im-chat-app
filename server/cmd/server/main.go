@@ -85,12 +85,15 @@ func run() error {
 	userStore := store.NewUserStore(db)
 	deviceStore := store.NewDeviceStore(db)
 	friendStore := store.NewFriendStore(db)
+	convStore := store.NewConversationStore(db)
+	msgStore := store.NewMessageStore(db)
 
 	authSvc := service.NewAuthService(
 		userStore, deviceStore,
 		cfg.JWT.Secret, cfg.JWT.AccessTTL, cfg.JWT.RefreshTTL,
 	)
 	friendSvc := service.NewFriendService(friendStore, userStore)
+	convSvc := service.NewConversationService(convStore, userStore)
 
 	// WebSocket 网关。
 	//
@@ -98,11 +101,24 @@ func run() error {
 	// 用函数注入而不是让 ws 包直接依赖 store，是为了守住架构文档的边界纪律
 	// （只有 service 层可以访问 store 层）。
 	hub := ws.NewHub(friendSvc.FriendIDs)
-	gateway := ws.NewGateway(hub, cfg.JWT.Secret, nil, cfg.AllowedOrigins)
+
+	// 消息服务需要一个 Pusher 才能在线投递。
+	// *ws.Hub 隐式实现了 service.Pusher（PushMessage / PushRead），
+	// 依赖方向是 main 做连线：service 只认自己定义的接口，不 import ws，
+	// 因此不会形成 ws ←→ service 的循环依赖。
+	idemStore := cache.NewIdempotencyStore(rdb)
+	msgSvc := service.NewMessageService(msgStore, convStore, idemStore, hub)
+
+	// WS 业务适配层：把上行的 send/read 落到 msgSvc。
+	// 必须在 msgSvc 之后创建。
+	business := ws.NewMessageBusiness(msgSvc)
+	gateway := ws.NewGateway(hub, cfg.JWT.Secret, business, cfg.AllowedOrigins)
 
 	authH := handler.NewAuthHandler(authSvc)
 	userH := handler.NewUserHandler(authSvc)
 	friendH := handler.NewFriendHandler(friendSvc)
+	convH := handler.NewConversationHandler(convSvc)
+	msgH := handler.NewMessageHandler(msgSvc, convSvc)
 	// /healthz 里的 wsConnections 来自 Hub —— 压测时可以直接从这里看承载量
 	healthH := handler.NewHealthHandler(db, rdb, version, hub.Connections)
 
@@ -116,7 +132,7 @@ func run() error {
 	// 这样日志格式统一，便于 grep 与后续接入采集
 	r.Use(requestLogger())
 
-	registerRoutes(r, cfg, gateway, authH, userH, friendH, healthH)
+	registerRoutes(r, cfg, gateway, authH, userH, friendH, convH, msgH, healthH)
 
 	// ---------- 7) 监听 + 优雅退出 ----------
 	srv := &http.Server{
@@ -174,6 +190,8 @@ func registerRoutes(
 	authH *handler.AuthHandler,
 	userH *handler.UserHandler,
 	friendH *handler.FriendHandler,
+	convH *handler.ConversationHandler,
+	msgH *handler.MessageHandler,
 	healthH *handler.HealthHandler,
 ) {
 	// 健康检查：不需要鉴权，且不记访问日志（避免刷屏）
@@ -205,6 +223,15 @@ func registerRoutes(
 
 		authed.GET("/friends", friendH.List)
 		authed.POST("/friends", friendH.Add)
+
+		// ---- Sprint 3：会话与消息 ----
+		authed.GET("/conversations", convH.List)
+		authed.POST("/conversations", convH.Create)
+		authed.GET("/conversations/:id/members", convH.Members)
+
+		authed.GET("/conversations/:id/messages", msgH.History)
+		authed.GET("/conversations/:id/sync", msgH.Sync)
+		authed.POST("/conversations/:id/read", msgH.MarkRead)
 	}
 }
 
