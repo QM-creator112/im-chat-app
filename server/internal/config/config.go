@@ -47,6 +47,19 @@ type DBConfig struct {
 	User     string
 	Password string
 	Name     string
+
+	// 连接池参数。
+	//
+	// 为什么放进配置而不是写死常量：
+	//   压测实测出的瓶颈就在这里 —— 5000 个并发发送者抢 25 个连接，
+	//   排队时间超过请求的 context deadline，出现 16835 次超时。
+	//   不同部署环境（CPU 核数、MySQL 规格）合适的值不同，必须可调。
+	//
+	// 默认值保持 25/10/3，与改动前**完全一致** ——
+	// 不设环境变量时行为不变，避免"改配置引入回归"。
+	MaxOpenConns     int
+	MaxIdleConns     int
+	ConnMaxLifetimeM int
 }
 
 // DSN 拼出 MySQL 连接串。
@@ -91,11 +104,14 @@ func Load() (*Config, error) {
 		Env:  getEnv("APP_ENV", "development"),
 		Port: getEnv("APP_PORT", "8080"),
 		DB: DBConfig{
-			Host:     getEnv("DB_HOST", "127.0.0.1"),
-			Port:     getEnv("DB_PORT", "3306"),
-			User:     getEnv("DB_USER", ""),
-			Password: getEnv("DB_PASSWORD", ""),
-			Name:     getEnv("DB_NAME", "im_chat"),
+			Host:             getEnv("DB_HOST", "127.0.0.1"),
+			Port:             getEnv("DB_PORT", "3306"),
+			User:             getEnv("DB_USER", ""),
+			Password:         getEnv("DB_PASSWORD", ""),
+			Name:             getEnv("DB_NAME", "im_chat"),
+			MaxOpenConns:     getEnvInt("DB_MAX_OPEN", 25),
+			MaxIdleConns:     getEnvInt("DB_MAX_IDLE", 10),
+			ConnMaxLifetimeM: getEnvInt("DB_CONN_MAX_LIFETIME_MIN", 3),
 		},
 		Redis: RedisConfig{
 			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),

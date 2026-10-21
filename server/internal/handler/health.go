@@ -10,6 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/QM-creator112/im-chat-app/server/internal/store"
 )
 
 // HealthHandler 健康检查。
@@ -65,6 +67,7 @@ func (h *HealthHandler) Health(c *gin.Context) {
 			"uptimeSeconds": int64(time.Since(h.started).Seconds()),
 			"checks":        checks,
 			"runtime":       runtimeSnapshot(),
+			"pool":          store.Stat(h.db),
 		},
 	})
 }

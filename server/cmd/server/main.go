@@ -65,12 +65,22 @@ func run() error {
 	slog.Info("配置加载完成", "env", cfg.Env, "port", cfg.Port, "version", version)
 
 	// ---------- 3) MySQL ----------
-	db, err := store.Open(cfg.DB.DSN())
+	// 连接池参数来自环境变量（DB_MAX_OPEN / DB_MAX_IDLE / DB_CONN_MAX_LIFETIME_MIN）。
+	// 不设时用默认值 25/10/3 —— 与改动前完全一致。
+	db, err := store.OpenWithPool(cfg.DB.DSN(), store.PoolOptions{
+		MaxOpenConns:    cfg.DB.MaxOpenConns,
+		MaxIdleConns:    cfg.DB.MaxIdleConns,
+		ConnMaxLifetime: time.Duration(cfg.DB.ConnMaxLifetimeM) * time.Minute,
+	})
 	if err != nil {
 		return err
 	}
 	defer func() { _ = db.Close() }()
-	slog.Info("MySQL 连接成功", "host", cfg.DB.Host, "database", cfg.DB.Name)
+	slog.Info("MySQL 连接成功",
+		"host", cfg.DB.Host, "database", cfg.DB.Name,
+		"max_open_conns", cfg.DB.MaxOpenConns,
+		"max_idle_conns", cfg.DB.MaxIdleConns,
+		"conn_max_lifetime_min", cfg.DB.ConnMaxLifetimeM)
 
 	// ---------- 4) Redis ----------
 	rdb, err := cache.NewClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
