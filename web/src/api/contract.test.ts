@@ -344,3 +344,56 @@ describe('群管理接口（Sprint 5）', () => {
     }
   })
 })
+
+// ===========================================================================
+// Sprint 6：AI 助手接口的契约验证
+// ===========================================================================
+describe('AI 助手接口（Sprint 6）', () => {
+  let convId = 0
+
+  itBackend('POST /ai 返回一条 contentType=5 的消息', async () => {
+    const auth = await api.login({ username: userA.username, password: userA.password })
+    saveSession(auth.accessToken, auth.refreshToken, {
+      id: auth.user.id,
+      username: auth.user.username,
+      nickname: auth.user.nickname,
+      avatarUrl: auth.user.avatarUrl,
+    })
+
+    const page = await api.listConversations()
+    const conv = page.items.find((c) => c.title === userB.nickname)
+    expect(conv, '需要一个与 userB 的会话').toBeTruthy()
+    convId = conv?.id as number
+
+    const res = await api.askAI(convId, 'summary')
+    expect(res.message).toBeTruthy()
+    // 契约：AI 消息是系统消息
+    expect(res.message.contentType).toBe(5)
+    // 契约：有真实 seq（和普通消息一样参与顺序）
+    expect(res.message.seq).toBeGreaterThan(0)
+    // 必须以机器人前缀开头，界面上才能和普通消息区分
+    expect(res.message.content.startsWith('🤖')).toBe(true)
+  })
+
+  itBackend('AI 失败也返回 200（降级成系统消息，不是错误码）', async () => {
+    // 无论侧车是否在线，这个接口都应当成功 —— 这正是"故障隔离"的契约
+    const res = await api.askAI(convId, 'reply')
+    expect(res.message.contentType).toBe(5)
+    expect(res.message.content.startsWith('🤖')).toBe(true)
+    // 内容要么是 AI 输出，要么是降级提示；两者都算"业务成功"
+    expect(res.message.content.length).toBeGreaterThan(5)
+  })
+
+  itBackend('AI 消息会进入历史，且 seq 递增', async () => {
+    const before = await api.listMessages(convId, 0, 5)
+    const maxBefore = before.items.reduce((m, x) => Math.max(m, x.seq), 0)
+
+    const res = await api.askAI(convId, 'summary')
+    expect(res.message.seq).toBeGreaterThan(maxBefore)
+
+    const after = await api.listMessages(convId, 0, 5)
+    const found = after.items.find((m) => m.seq === res.message.seq)
+    expect(found, 'AI 消息应当能从历史接口里读回来').toBeTruthy()
+    expect(found?.contentType).toBe(5)
+  })
+})

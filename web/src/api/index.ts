@@ -3,6 +3,7 @@ import type {
   AuthResult,
   Conversation,
   Member,
+  Message,
   MessagePage,
   Page,
   SyncResult,
@@ -93,6 +94,20 @@ export function addMembers(convId: number, userIds: number[]): Promise<{ added: 
  */
 export function leaveGroup(convId: number): Promise<unknown> {
   return http.del(`/conversations/${convId}/members/me`)
+}
+
+// ---------- AI 助手（Sprint 6）----------
+
+export type AIKind = 'summary' | 'reply'
+
+/**
+ * 让 AI 在会话里发一条消息。
+ *
+ * 后端**总是**返回 200（AI 失败会降级成一条「暂时不可用」的系统消息），
+ * 所以调用方不用为 AI 故障写 try/catch 的业务分支 —— 出问题也只是收到一条提示消息。
+ */
+export function askAI(convId: number, kind: AIKind = 'summary'): Promise<{ message: Message }> {
+  return http.post(`/conversations/${convId}/ai`, { kind })
 }
 
 // ---------- 消息 ----------

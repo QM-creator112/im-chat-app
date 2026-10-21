@@ -179,6 +179,42 @@ export const useChatStore = defineStore('chat', () => {
     return { read, total: receivers.length }
   }
 
+  // ---------------- AI 助手（Sprint 6）----------------
+
+  const aiLoading = ref(false)
+
+  /**
+   * 让 AI 在当前会话里发一条消息。
+   *
+   * 后端的语义是「AI 失败也返回 200，失败降级成一条系统消息」，
+   * 所以这里**不需要**为 AI 故障写业务分支 —— 出问题也只是列表里多一条提示。
+   */
+  async function askAI(kind: 'summary' | 'reply' = 'summary'): Promise<void> {
+    const convId = activeConvId.value
+    if (convId === null) return
+    aiLoading.value = true
+    try {
+      const res = await api.askAI(convId, kind)
+      // 立刻插入：HTTP 响应里有完整消息。
+      // WS 也会把同一条推给我（AI 消息推给所有人含发起者），
+      // 但两者的去重键都是 s:<seq>，所以不会出现两条。
+      setList(
+        convId,
+        upsertMessages(listOf(convId), [fromServer(res.message)]),
+      )
+      touchConversation(convId, {
+        latestSeq: Math.max(
+          conversations.value.find((c) => c.id === convId)?.latestSeq ?? 0,
+          res.message.seq,
+        ),
+        lastMsg: res.message.content,
+        lastMsgAt: res.message.createdAt,
+      })
+    } finally {
+      aiLoading.value = false
+    }
+  }
+
   // ---------------- 群管理 ----------------
 
   /** 建群：至少 2 个其他成员（加上自己就是 3 人群起）。 */
@@ -579,6 +615,8 @@ export const useChatStore = defineStore('chat', () => {
     createGroup,
     addMembersToActive,
     leaveActiveGroup,
+    aiLoading,
+    askAI,
     reset,
   }
 })

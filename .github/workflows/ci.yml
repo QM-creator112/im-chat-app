@@ -92,3 +92,30 @@ jobs:
       - name: 生产构建
         working-directory: web
         run: npm run build
+
+  # ==================== AI 侧车 ====================
+  ai:
+    name: AI 侧车测试
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装依赖
+        working-directory: ai
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      # 三个模式的行为边界：real / mock / disabled
+      # 注意：CI 里**没有** LLM_API_KEY，所以 real 模式只验证配置解析，
+      # 不会真的去打外部 API（否则会拿假 key 调用并被限流）
+      - name: 单元测试（pytest）
+        working-directory: ai
+        run: python -m pytest -q

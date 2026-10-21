@@ -60,12 +60,16 @@ type MessageService struct {
 	convs  *store.ConversationStore
 	idem   *cache.IdempotencyStore
 	pusher Pusher
+	// ai AI 侧车客户端，可以为 nil（未配置 AI 时降级为"AI 暂时不可用"的系统消息）
+	ai *AIClient
 }
 
-// NewMessageService 构造 MessageService。pusher 可以为 nil（不投递，仅落库）。
+// NewMessageService 构造 MessageService。
+//
+// pusher 可以为 nil（不投递，仅落库）；ai 可以为 nil（AI 功能降级）。
 func NewMessageService(msgs *store.MessageStore, convs *store.ConversationStore,
-	idem *cache.IdempotencyStore, pusher Pusher) *MessageService {
-	return &MessageService{msgs: msgs, convs: convs, idem: idem, pusher: pusher}
+	idem *cache.IdempotencyStore, pusher Pusher, ai *AIClient) *MessageService {
+	return &MessageService{msgs: msgs, convs: convs, idem: idem, pusher: pusher, ai: ai}
 }
 
 // Send 是消息发送的唯一入口：校验 → 幂等 → 落库（分配 seq）→ 投递。
@@ -161,6 +165,15 @@ func (s *MessageService) Send(ctx context.Context, in SendMessageInput) (*model.
 
 	// ---- 投递（至少一次；离线则跳过，等对方上线按游标补拉）----
 	s.deliver(ctx, msg)
+
+	// ---- @AI 触发（Sprint 6）----
+	// 必须在**发送成功之后**、且异步执行：
+	// 大模型可能几秒才回，同步做会让"发消息"这个动作卡住，
+	// 而发消息是主链路，AI 只是增强功能。
+	if kind, ok := parseAICommand(in.Content); ok {
+		s.triggerAIAsync(in.ConversationID, in.SenderID, kind)
+	}
+
 	return msg, nil
 }
 
@@ -171,6 +184,24 @@ func (s *MessageService) Send(ctx context.Context, in SendMessageInput) (*model.
 //   - 同步能保证**同一会话的推送顺序**与 seq 顺序一致
 //     （开 goroutine 的话两个并发 Send 的推送顺序可能颠倒）
 func (s *MessageService) deliver(ctx context.Context, msg *model.Message) {
+	s.deliverExcept(ctx, msg, msg.SenderID)
+}
+
+// deliverToAll 推给会话内**所有**成员，包括 sender 自己。
+//
+// 为什么需要它（这是 Sprint 6 里真实踩到的坑）：
+//
+//	AI 回复是**服务端生成**的消息，请求者并没有在本地乐观显示它。
+//	如果沿用普通消息的"不推给发送者"规则，发起 @AI 的人**永远收不到 AI 的回复**，
+//	除非手动刷新/重新同步 —— 体验上就是"我 @ 了 AI，它没理我"。
+//
+// 所以 AI 消息必须推给所有人（含发起者）。
+func (s *MessageService) deliverToAll(ctx context.Context, msg *model.Message) {
+	s.deliverExcept(ctx, msg, 0) // 0 不是合法用户 ID，因此谁都不排除
+}
+
+// deliverExcept 推给除 excludeID 外的所有成员。
+func (s *MessageService) deliverExcept(ctx context.Context, msg *model.Message, excludeID uint64) {
 	if s.pusher == nil {
 		return
 	}
@@ -181,8 +212,8 @@ func (s *MessageService) deliver(ctx context.Context, msg *model.Message) {
 	}
 
 	for _, uid := range members {
-		if uid == msg.SenderID {
-			continue // 不推给发送者：他本地已经乐观显示了一条
+		if uid == excludeID {
+			continue // 普通消息不推给发送者：他本地已经乐观显示了一条
 		}
 		if n := s.pusher.PushMessage(uid, msg); n == 0 {
 			// 对方不在线 —— 这不是错误。

@@ -59,7 +59,7 @@
 
 ## 二、REST 接口
 
-### 2.1 接口清单（17 个）
+### 2.1 接口清单（18 个）
 
 | # | 方法 | 路径 | 鉴权 | 请求 | 响应 `data` |
 | --- | --- | --- | --- | --- | --- |
@@ -79,7 +79,8 @@
 | 14 | GET | `/conversations/:id/members` | ✓ | — | `{items:[Member]}` |
 | 15 | **POST** | **`/conversations/:id/members`** | ✓ | `{userIds:[]}` | `{added}` |
 | 16 | **DELETE** | **`/conversations/:id/members/me`** | ✓ | — | `{}` |
-| 17 | GET | `/healthz` | ✗ | — | `{status, version, uptimeSeconds, checks}` |
+| 17 | **POST** | **`/conversations/:id/ai`** | ✓ | `{kind?}` | `{message}` |
+| 18 | GET | `/healthz` | ✗ | — | `{status, version, uptimeSeconds, checks}` |
 
 > **#15 / #16 是 Sprint 5 新增的群管理接口。**
 > `Member.lastReadSeq` 让前端能自行算出群聊的「已读 2/4」——
@@ -236,6 +237,29 @@
 | 退群后不再收到该群消息 | 投递按 `conversation_members` 查收件人，删行即生效 |
 | **历史消息保留** | `messages` 不删 —— 退群只影响「以后能不能收」，不影响已经发生的记录 |
 | 幂等 | 重复退群返回成功（`RowsAffected=0` 不报错） |
+
+#### POST `/conversations/:id/ai`（Sprint 6 · AI 助手）
+
+```json
+// 请求（kind 可省略，默认 summary）
+{ "kind": "summary" }   // 或 "reply"
+// 响应：AI 那条**消息**（和普通消息同结构，有自己的 seq）
+{ "code": 0, "message": "ok", "data": { "message": Message } }
+```
+
+| 规则 | 说明 |
+| --- | --- |
+| **AI 失败也返回 200** | 失败会降级成一条「AI 助手暂时不可用」的系统消息 —— 那条消息确实写进了会话，业务上成功了。只有「不是成员」「数据库写不进」才返回错误码 |
+| `contentType` | **5（系统消息）**，前端据此渲染成 AI 卡片而不是普通气泡 |
+| `senderId` | 记在**发起请求的用户**名下，便于追溯「谁问的」 |
+| 投递 | **推给会话内所有人，包括发起者**（见下方说明） |
+| 触发方式二 | 消息内容以 `@AI` 开头时**异步**自动触发（不阻塞发消息的响应） |
+
+> **为什么 AI 消息要推给发起者自己？**
+> 普通消息不推给发送者（他本地已经乐观显示了一条）。
+> 但 AI 消息是**服务端生成**的，请求者本地并没有这条 ——
+> 沿用普通规则会让发起 `@AI` 的人**永远看不到回复**，只能刷新。
+> 这是实现时真实踩到的 bug：验收脚本里「发送者等 AI 回复」超时了。
 
 ---
 

@@ -11,6 +11,14 @@ const chat = useChatStore()
 
 const scrollRef = ref<HTMLElement | null>(null)
 
+/**
+ * 系统消息的 contentType。
+ *
+ * 后端把 AI 回复也用这个类型落库（而不是伪造一个"用户"），
+ * 前端据此渲染成居中卡片 —— AI 说的话不是任何一方说的，不该挂在左右某一侧。
+ */
+const SYSTEM_CONTENT_TYPE = 5
+
 const messages = computed<ChatMessage[]>(() => chat.activeMessages)
 const myId = computed<number>(() => auth.user?.id ?? 0)
 
@@ -124,7 +132,12 @@ defineExpose({ scrollToBottom })
     <div v-for="(m, i) in messages" :key="m.clientMsgId + '-' + m.seq" class="msg-row">
       <div v-if="showTime(i)" class="msg-time">{{ formatTime(m.createdAt) }}</div>
 
-      <div class="msg-line" :class="isMine(m) ? 'mine' : 'peer'">
+      <!-- 系统 / AI 消息：居中卡片，不挂在左右任何一侧 -->
+      <div v-if="m.contentType === SYSTEM_CONTENT_TYPE" class="system-row">
+        <div class="system-card">{{ m.content }}</div>
+      </div>
+
+      <div v-else class="msg-line" :class="isMine(m) ? 'mine' : 'peer'">
         <div class="bubble" :class="isMine(m) ? 'bubble-mine' : 'bubble-peer'">
           <div v-if="!isMine(m)" class="sender">{{ m.senderName || '对方' }}</div>
           <div class="content">{{ m.content }}</div>
@@ -181,6 +194,27 @@ defineExpose({ scrollToBottom })
 .msg-line {
   display: flex;
   margin-bottom: 12px;
+}
+
+/* 系统 / AI 消息：居中卡片 + 左侧强调条 */
+.system-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.system-card {
+  max-width: min(78%, 620px);
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f0f4fa;
+  border: 1px solid #dbe4f0;
+  border-left: 3px solid var(--im-primary-light);
+  color: var(--im-text);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .msg-line.mine {

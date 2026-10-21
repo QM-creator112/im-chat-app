@@ -187,6 +187,21 @@ async function handleLeaveGroup(): Promise<void> {
   }
 }
 
+/**
+ * 触发 AI 总结。
+ *
+ * 后端的设计是「AI 失败也返回 200，失败降级成一条系统消息」，
+ * 所以这里通常不会进 catch —— 只有"不是成员""请求参数错"这类真故障才会。
+ */
+async function handleAskAI(): Promise<void> {
+  if (chat.activeConvId === null) return
+  try {
+    await chat.askAI('summary')
+  } catch (e) {
+    ElMessage.error(`AI 请求失败：${(e as Error).message}`)
+  }
+}
+
 async function handleLogout(): Promise<void> {
   chat.reset()
   await auth.logout()
@@ -258,7 +273,18 @@ function memberOnline(uid: number): boolean {
               </template>
             </div>
           </div>
-          <el-button v-if="isGroup" link type="primary" @click="openMembers">成员</el-button>
+          <div class="header-actions">
+            <el-button
+              v-if="active"
+              link
+              type="primary"
+              :loading="chat.aiLoading"
+              @click="handleAskAI"
+            >
+              🤖 AI 总结
+            </el-button>
+            <el-button v-if="isGroup" link type="primary" @click="openMembers">成员</el-button>
+          </div>
         </header>
 
         <el-empty
@@ -475,6 +501,13 @@ function memberOnline(uid: number): boolean {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
 }
 
 .main-title {

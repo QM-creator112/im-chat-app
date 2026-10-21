@@ -107,7 +107,17 @@ func run() error {
 	// 依赖方向是 main 做连线：service 只认自己定义的接口，不 import ws，
 	// 因此不会形成 ws ←→ service 的循环依赖。
 	idemStore := cache.NewIdempotencyStore(rdb)
-	msgSvc := service.NewMessageService(msgStore, convStore, idemStore, hub)
+
+	// AI 侧车客户端（Sprint 6）。baseURL 为空时 NewAIClient 返回 nil，
+	// 此时 @AI 会降级为"AI 助手暂时不可用"的系统消息，聊天完全不受影响。
+	aiClient := service.NewAIClient(cfg.AI.BaseURL)
+	if aiClient == nil {
+		slog.Warn("未配置 AI_BASE_URL，AI 功能将降级（@AI 只回提示消息）")
+	} else {
+		slog.Info("AI 侧车已配置", "base_url", cfg.AI.BaseURL)
+	}
+
+	msgSvc := service.NewMessageService(msgStore, convStore, idemStore, hub, aiClient)
 
 	// WS 业务适配层：把上行的 send/read 落到 msgSvc。
 	// 必须在 msgSvc 之后创建。
@@ -119,6 +129,7 @@ func run() error {
 	friendH := handler.NewFriendHandler(friendSvc)
 	convH := handler.NewConversationHandler(convSvc)
 	msgH := handler.NewMessageHandler(msgSvc, convSvc)
+	aiH := handler.NewAIHandler(msgSvc)
 	// /healthz 里的 wsConnections 来自 Hub —— 压测时可以直接从这里看承载量
 	healthH := handler.NewHealthHandler(db, rdb, version, hub.Connections)
 
@@ -132,7 +143,7 @@ func run() error {
 	// 这样日志格式统一，便于 grep 与后续接入采集
 	r.Use(requestLogger())
 
-	registerRoutes(r, cfg, gateway, authH, userH, friendH, convH, msgH, healthH)
+	registerRoutes(r, cfg, gateway, authH, userH, friendH, convH, msgH, aiH, healthH)
 
 	// ---------- 7) 监听 + 优雅退出 ----------
 	srv := &http.Server{
@@ -192,6 +203,7 @@ func registerRoutes(
 	friendH *handler.FriendHandler,
 	convH *handler.ConversationHandler,
 	msgH *handler.MessageHandler,
+	aiH *handler.AIHandler,
 	healthH *handler.HealthHandler,
 ) {
 	// 健康检查：不需要鉴权，且不记访问日志（避免刷屏）
@@ -236,6 +248,10 @@ func registerRoutes(
 		authed.GET("/conversations/:id/messages", msgH.History)
 		authed.GET("/conversations/:id/sync", msgH.Sync)
 		authed.POST("/conversations/:id/read", msgH.MarkRead)
+
+		// ---- Sprint 6：AI 侧车 ----
+		// 也可以在消息里发 "@AI 总结一下" 触发（自动、异步）
+		authed.POST("/conversations/:id/ai", aiH.Ask)
 	}
 }
 
