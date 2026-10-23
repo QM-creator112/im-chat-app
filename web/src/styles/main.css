@@ -55,3 +55,52 @@ body {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ============================================================================
+ * 移动端全局修正
+ *
+ * 这些规则必须放在全局（不能写在 scoped 里）：
+ * Element Plus 的 el-dialog / el-message-box 会 teleport 到 body，
+ * 组件内的 scoped 样式够不到它们。
+ * ========================================================================== */
+
+html {
+  /* iOS 横竖屏切换时不要自动放大字体 */
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (max-width: 767px) {
+  /* 对话框写死了 width:400~440px，在 375px 手机上会溢出屏幕 */
+  .el-dialog {
+    --el-dialog-width: auto;
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+    margin-top: 6vh !important;
+    margin-bottom: 6vh !important;
+  }
+
+  .el-dialog__header {
+    padding: 14px 16px 8px;
+  }
+
+  .el-dialog__body {
+    padding: 12px 16px;
+  }
+
+  .el-message-box {
+    width: calc(100vw - 48px) !important;
+    max-width: calc(100vw - 48px);
+  }
+
+  /* 触屏：按钮最小命中区，同时避免长文案挤爆 */
+  .el-button {
+    min-height: 32px;
+  }
+
+  /* 消息提示不要贴边 */
+  .el-message {
+    width: calc(100vw - 32px);
+    min-width: 0;
+  }
+}
+

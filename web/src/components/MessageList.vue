@@ -281,4 +281,30 @@ defineExpose({ scrollToBottom })
 .state.failed {
   color: var(--im-failed);
 }
+/* ============================================================================
+ * 响应式：手机（< 768px）
+ *  · 减小左右留白，把宽度让给消息本体
+ *  · 气泡放宽到 82%（桌面 70%），手机上 70% 会折行过多
+ * ========================================================================== */
+@media (max-width: 767px) {
+  .msg-scroll {
+    padding: 12px 12px 8px;
+  }
+
+  .bubble {
+    max-width: min(82%, 520px);
+  }
+
+  .system-card {
+    max-width: 92%;
+  }
+
+  .msg-time {
+    margin: 8px 0 6px;
+  }
+
+  .msg-line {
+    margin-bottom: 10px;
+  }
+}
 </style>

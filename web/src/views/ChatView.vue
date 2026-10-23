@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
@@ -34,6 +34,23 @@ const selectedForAdd = ref<number[]>([])
 
 const myId = computed(() => auth.user?.id ?? 0)
 const active = computed(() => chat.activeConversation)
+
+// ---------------- 移动端视图切换（master-detail）----------------
+/**
+ * 手机上「会话列表」与「聊天区」是两屏，这里只控制显示哪一屏。
+ *
+ * **刻意不去改 activeConvId**：点返回不会退订、不会清空消息、不会重新拉历史，
+ * 从列表点回同一个会话是瞬时的。桌面端这个值完全不起作用（靠媒体查询隔离）。
+ */
+const mobileListOpen = ref(true)
+
+watch(
+  () => active.value?.id,
+  (id) => {
+    // 选中会话 → 自动切到聊天屏；会话被取消（如退群）→ 回到列表
+    mobileListOpen.value = id == null
+  },
+)
 const isGroup = computed(() => active.value?.type === ConversationType.GROUP)
 const isOwner = computed(() => isGroup.value && active.value?.ownerId === myId.value)
 const members = computed(() =>
@@ -214,7 +231,11 @@ function memberOnline(uid: number): boolean {
 </script>
 
 <template>
-  <div class="chat-page">
+  <!--
+    响应式说明：mobile-list 这个类只在 <768px 生效，用来切换手机上显示哪一屏。
+    桌面端侧栏（288px）与聊天区并排，这个类不起任何作用。
+  -->
+  <div class="chat-page" :class="{ 'mobile-list': mobileListOpen }">
     <div v-if="chat.wsStatus === 'reconnecting'" class="banner">
       ⟳ {{ reconnectingText }}
     </div>
@@ -255,9 +276,19 @@ function memberOnline(uid: number): boolean {
       <!-- 右侧 -->
       <main class="main">
         <header class="main-header">
+          <!-- 手机上才有：返回会话列表（桌面由 CSS 隐藏） -->
+          <button
+            v-if="active"
+            class="mobile-back"
+            type="button"
+            aria-label="返回会话列表"
+            @click="mobileListOpen = true"
+          >
+            ←
+          </button>
           <div class="main-header-left">
             <div class="main-title">
-              {{ active?.title || '选择一个会话' }}
+              <span class="main-title-text">{{ active?.title || '选择一个会话' }}</span>
               <el-tag v-if="isGroup" size="small" type="info" effect="plain" class="group-tag">
                 群聊 {{ members.length > 0 ? members.length + ' 人' : '' }}
               </el-tag>
@@ -516,10 +547,19 @@ function memberOnline(uid: number): boolean {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0; /* 让长标题能收缩，否则会把群标签挤出屏幕 */
+}
+
+.main-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .group-tag {
   font-size: 11px;
+  flex: 0 0 auto;
 }
 
 .main-sub {
@@ -600,5 +640,134 @@ function memberOnline(uid: number): boolean {
   max-height: 260px;
   overflow-y: auto;
   width: 100%;
+}
+/* ============================================================================
+ * 返回按钮：桌面端不显示，只有手机断点里才出现
+ * ========================================================================== */
+.mobile-back {
+  display: none;
+}
+
+/* ============================================================================
+ * 响应式：手机（< 768px）
+ * ----------------------------------------------------------------------------
+ * 为什么必须改：桌面是「侧栏 288px + 聊天区自适应」并排。
+ * 在 375px 宽的手机上，聊天区只剩 375 - 288 = 87px，
+ * 实测标题会竖排成一列、输入框被压成一条缝（见 build/shots-before/）。
+ *
+ * 所以手机上改成 master-detail 两屏：
+ *   · 默认：会话列表铺满全屏
+ *   · 选中会话后：聊天区铺满全屏，左上角出现返回按钮
+ * 两屏之间不重新拉数据，只是 CSS 切换显示。
+ * ========================================================================== */
+@media (max-width: 767px) {
+  /* 手机浏览器地址栏会伸缩，100vh 会露白底；100dvh 跟着可视区走。
+     两行都写：不认 dvh 的浏览器用第一行，认的用第二行覆盖。 */
+  .chat-page {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .banner {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .chat-body {
+    position: relative;
+  }
+
+  /* ---- 列表屏 ---- */
+  .side {
+    width: 100%;
+    flex: 1 1 auto;
+    border-right: none;
+  }
+
+  /* 手机上没有「聊天空屏」这一屏：没选会话时就应该看列表 */
+  .main {
+    display: none;
+  }
+
+  /* ---- 聊天屏：隐藏列表，聊天区铺满 ---- */
+  .chat-page:not(.mobile-list) .side {
+    display: none;
+  }
+
+  .chat-page:not(.mobile-list) .main {
+    display: flex;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  /* 44px 触屏命中区（iOS/Android 建议下限） */
+  .mobile-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: -8px 2px -8px -8px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--im-text, #1f2329);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+
+  .mobile-back:active {
+    background: #eef2f7;
+  }
+
+  /* 头部紧凑：把宽度让给标题 */
+  .main-header {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .main-header-left {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .main-title {
+    font-size: 15px;
+    gap: 6px;
+  }
+
+  .main-sub {
+    font-size: 11px;
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  /* 头部按钮改用触屏合适的尺寸，别把标题挤没 */
+  .header-actions :deep(.el-button) {
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  /* 手机上的弹窗（好友/建群/成员）改成接近全宽、可滚动 */
+  :deep(.el-dialog) {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+    margin-top: 6vh !important;
+  }
+
+  .friend-list,
+  .member-list {
+    max-height: 52vh;
+  }
+
+  /* 触屏命中区：列表项至少 56px 高 */
+  .friend-item,
+  .member-item {
+    padding: 12px 8px;
+  }
 }
 </style>

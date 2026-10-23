@@ -171,4 +171,32 @@ function select(id: number): void {
   line-height: 18px;
   text-align: center;
 }
+/* ============================================================================
+ * 响应式：手机（< 768px）
+ * 手机上会话列表独占一屏，不再是 288px 的侧栏
+ * ========================================================================== */
+@media (max-width: 767px) {
+  .conv-panel {
+    width: 100%;
+    flex: 1 1 auto;
+    border-right: none;
+  }
+
+  .conv-header {
+    padding: 10px;
+  }
+
+  /* 触屏命中区：每行至少 56px */
+  .conv-item {
+    padding: 12px 14px;
+  }
+
+  .conv-title {
+    font-size: 15px;
+  }
+
+  .conv-last {
+    font-size: 13px;
+  }
+}
 </style>

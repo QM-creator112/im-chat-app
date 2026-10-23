@@ -117,6 +117,7 @@ async function submit(): Promise<void> {
 <style scoped>
 .login-page {
   min-height: 100vh;
+  min-height: 100dvh; /* 手机地址栏伸缩时 100vh 会露白底 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -187,5 +188,41 @@ h1 {
   color: var(--im-text-weak);
   border-top: 1px dashed var(--im-border);
   padding-top: 12px;
+}
+
+/* ============================================================================
+ * 响应式：手机（< 768px）
+ * 注意位置：必须放在样式块**末尾**。
+ * 放前面的话，后面的基础规则（.logo 52px 等）同权重会把它覆盖掉。
+ * ========================================================================== */
+@media (max-width: 767px) {
+  .login-page {
+    align-items: flex-start;
+    padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .login-card {
+    margin-top: 6vh;
+    padding: 26px 20px 20px;
+    border-radius: 12px;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+    font-size: 20px;
+  }
+
+  /* iOS 聚焦输入框时若字号 < 16px 会自动放大整页 */
+  .login-card :deep(.el-input__inner) {
+    font-size: 16px;
+  }
+
+  .login-card :deep(.el-button) {
+    min-height: 44px;
+  }
 }
 </style>
