@@ -5,6 +5,7 @@ import { ConversationType } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 import { useChatStore } from '@/stores/chat'
 import type { ChatMessage } from '@/utils/chatMessage'
+import { animateRowArrive } from '@/utils/motion'
 
 const auth = useAuthStore()
 const chat = useChatStore()
@@ -20,6 +21,24 @@ const scrollRef = ref<HTMLElement | null>(null)
 const SYSTEM_CONTENT_TYPE = 5
 
 const messages = computed<ChatMessage[]>(() => chat.activeMessages)
+
+/**
+ * 「一行到达」反馈（app-screens 允许的动效之一）
+ *
+ * 只在**追加一条**时触发：
+ *   · 历史分页会一次插入多条 -> 长度差 > 1，跳过（整段重播会很吵）
+ *   · 切换会话会整体替换 -> 由 activeConvId 变化处理，长度差也不是 +1
+ * 其余按压/悬停/焦点反馈用 CSS，不走 JS。
+ */
+watch(
+  () => messages.value.length,
+  async (n, old) => {
+    if (old === undefined || n !== old + 1) return
+    await nextTick()
+    const rows = scrollRef.value?.querySelectorAll('.msg-row')
+    animateRowArrive(rows?.[rows.length - 1] ?? null)
+  },
+)
 const myId = computed<number>(() => auth.user?.id ?? 0)
 
 function isMine(m: ChatMessage): boolean {
@@ -129,7 +148,7 @@ defineExpose({ scrollToBottom })
       :image-size="72"
     />
 
-    <div v-for="(m, i) in messages" :key="m.clientMsgId + '-' + m.seq" class="msg-row">
+    <div v-for="(m, i) in messages" :key="m.clientMsgId + '-' + m.seq" class="msg-row" :data-seq="m.seq">
       <div v-if="showTime(i)" class="msg-time">{{ formatTime(m.createdAt) }}</div>
 
       <!-- 系统 / AI 消息：居中卡片，不挂在左右任何一侧 -->

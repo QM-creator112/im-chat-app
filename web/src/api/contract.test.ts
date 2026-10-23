@@ -372,14 +372,14 @@ describe('AI 助手接口（Sprint 6）', () => {
     // 契约：有真实 seq（和普通消息一样参与顺序）
     expect(res.message.seq).toBeGreaterThan(0)
     // 必须以机器人前缀开头，界面上才能和普通消息区分
-    expect(res.message.content.startsWith('🤖')).toBe(true)
+    expect(res.message.content.startsWith('[AI]')).toBe(true)
   })
 
   itBackend('AI 失败也返回 200（降级成系统消息，不是错误码）', async () => {
     // 无论侧车是否在线，这个接口都应当成功 —— 这正是"故障隔离"的契约
     const res = await api.askAI(convId, 'reply')
     expect(res.message.contentType).toBe(5)
-    expect(res.message.content.startsWith('🤖')).toBe(true)
+    expect(res.message.content.startsWith('[AI]')).toBe(true)
     // 内容要么是 AI 输出，要么是降级提示；两者都算"业务成功"
     expect(res.message.content.length).toBeGreaterThan(5)
   })

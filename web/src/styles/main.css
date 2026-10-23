@@ -155,3 +155,43 @@ html {
   }
 }
 
+
+/* ============================================================================
+ * 动效：反馈优先
+ *
+ * app-screens §2.8：动效是反馈（按压/悬停/焦点/行到达/面板打开），
+ * 屏幕本身不做入场动画。这里用 CSS 做不依赖 JS 的那部分。
+ * ========================================================================== */
+
+/* 键盘可用的焦点环：鼠标点击不显示，Tab 导航才显示 */
+:focus-visible {
+  outline: 2px solid var(--im-primary);
+  outline-offset: 2px;
+  border-radius: var(--im-radius-chip, 4px);
+}
+
+/* 按压反馈：给可点元素一个明确的"按下去了"的视觉回应 */
+@media (prefers-reduced-motion: no-preference) {
+  .conv-item:active,
+  .friend-item:active,
+  .member-item:active {
+    background: var(--im-active);
+  }
+
+  .el-button:active:not(.is-disabled) {
+    transform: translateY(1px);
+  }
+}
+
+/* 系统要求减少动效时：全部过渡/动画压到几乎为 0，
+   内容与状态变化仍然可见（不是把动效关掉导致状态丢失） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
