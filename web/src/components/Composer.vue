@@ -86,7 +86,8 @@ function onKeydown(e: KeyboardEvent): void {
  * ========================================================================== */
 @media (max-width: 767px) {
   .composer {
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
+    /* 16px 左内边距：inspector 判 edge-text（文字距屏幕边 <12px）不合格 */
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
   }
 
   .composer-bar {

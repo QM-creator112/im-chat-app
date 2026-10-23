@@ -54,6 +54,23 @@
   --im-bubble-peer: var(--im-surface);
 }
 
+/* ============================================================================
+ * 覆盖 Element Plus 的主色
+ *
+ * 不覆盖的话 EP 会用默认蓝 #409eff —— 与品牌深蓝 #1f3864 同屏就是"两套强调色"，
+ * 而且 #409eff 在白底上只有 2.8:1，inspector 直接判 contrast 不合格。
+ * ========================================================================== */
+:root {
+  --el-color-primary: #1f3864;
+  --el-color-primary-light-3: #4a6fa5;
+  --el-color-primary-light-5: #7b96bf;
+  --el-color-primary-light-7: #b3c2d6;
+  --el-color-primary-light-8: #cbd5e3;
+  --el-color-primary-light-9: #e8edf4;
+  --el-color-primary-dark-2: #172b4d;
+  --el-border-radius-base: 6px;
+}
+
 * {
   box-sizing: border-box;
 }

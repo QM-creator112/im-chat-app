@@ -176,10 +176,16 @@ func (s *MessageService) persistAIMessage(
 		return nil, fmt.Errorf("生成消息 ID 失败: %w", err)
 	}
 
-	content := "🤖 AI：" + text
-	if !ok {
-		content = "🤖 " + text
+	// 前缀用 **[AI] 文字标记**，与侧车的 [MOCK] 同一套写法：
+	//   · 不用 emoji —— 用图形符号当状态标记是"生成式界面"的典型痕迹，
+	//     而且 emoji 在不同系统字形不一，做对比度检查时也不可控
+	//   · 成功时标注这是 AI 总结；失败时原文已含原因（如"暂时不可用"），
+	//     只加统一前缀，两种结果都能一眼认出是 AI 产生的
+	prefix := "[AI] "
+	if ok {
+		prefix = "[AI] 总结："
 	}
+	content := prefix + text
 
 	msg, err := s.msgs.Send(ctx, store.SendInput{
 		ConversationID: convID,
