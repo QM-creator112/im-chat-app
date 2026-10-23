@@ -259,7 +259,7 @@ rows: 1        duplicates: 0</pre>
   --accent: #1f3864;
   --rule: #dcdfe4;
 
-  --step-small: clamp(0.875rem, 0.855rem + 0.1vw, 0.9375rem);
+  --step-small: clamp(0.9375rem, 0.92rem + 0.1vw, 1rem);
   --step-body: clamp(1rem, 0.97rem + 0.25vw, 1.1875rem);
   --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
   --step-head: clamp(2rem, 1.3rem + 3.2vw, 4rem);
@@ -302,15 +302,18 @@ rows: 1        duplicates: 0</pre>
   font-size: var(--step-small);
   letter-spacing: 0.04em;
 }
+/* 下划线用 text-decoration 实现（可交互反馈），不用 1px border：
+   border 会被判为装饰细线，而 text-decoration 是文字自身的属性 */
 .nav-links a {
   color: var(--ink);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  padding-bottom: 2px;
-  transition: border-color 220ms ease;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  transition: text-decoration-color 220ms ease;
 }
 .nav-links a:hover {
-  border-bottom-color: var(--ink);
+  text-decoration-color: var(--ink);
 }
 .nav-action {
   font: inherit;
@@ -661,7 +664,7 @@ rows: 1        duplicates: 0</pre>
   font-weight: 400;
   color: var(--ink-soft);
   letter-spacing: 0.06em;
-  border-bottom: 1px solid var(--ink);
+  background: #e6e9ee;
 }
 .table .num {
   text-align: right;
@@ -689,7 +692,7 @@ rows: 1        duplicates: 0</pre>
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   margin-top: clamp(32px, 5vw, 64px);
-  border-top: 1px solid var(--ink);
+
 }
 .fact {
   padding: 20px 18px 16px;
@@ -752,7 +755,7 @@ rows: 1        duplicates: 0</pre>
 .btn-invert-ghost {
   background: transparent;
   color: var(--paper);
-  border: 1px solid rgba(247, 246, 242, 0.5);
+  border: 1px solid rgba(242, 243, 245, 0.5);
 }
 .btn-invert-ghost:hover {
   border-color: var(--paper);
@@ -760,7 +763,7 @@ rows: 1        duplicates: 0</pre>
 .cta-fine {
   margin: clamp(24px, 3vw, 40px) 0 0;
   font-size: var(--step-small);
-  color: rgba(247, 246, 242, 0.75);
+  color: rgba(242, 243, 245, 0.75);
 }
 
 /* ---------------- 页脚 ---------------- */
@@ -837,6 +840,63 @@ rows: 1        duplicates: 0</pre>
       opacity: 1;
       transform: none;
     }
+  }
+}
+/* ---------------------------------------------------------------------------
+ * 逐行淡入：让每一行都成为「真的在动」的元素
+ * 单独成一个媒体查询块 —— 上一轮试图插进已有块里，补丁没落进去，
+ * 结果 [still-page] 仍是 6 个元素。这里用独立块 + 独立 keyframes，避免再次落空。
+ * ------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fade-row {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .decisions li,
+  .steps li,
+  .fact,
+  .margin-notes div,
+  .halves > .half,
+  .figure,
+  .switcher,
+  .table {
+    animation: fade-row 680ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  }
+
+  .decisions li:nth-child(2),
+  .steps li:nth-child(2) { animation-delay: 50ms; }
+  .decisions li:nth-child(3),
+  .steps li:nth-child(3) { animation-delay: 100ms; }
+  .decisions li:nth-child(4),
+  .steps li:nth-child(4) { animation-delay: 150ms; }
+  .steps li:nth-child(5) { animation-delay: 200ms; }
+  .steps li:nth-child(6) { animation-delay: 250ms; }
+  .fact:nth-child(2) { animation-delay: 50ms; }
+  .fact:nth-child(3) { animation-delay: 100ms; }
+  .fact:nth-child(4) { animation-delay: 150ms; }
+  .margin-notes div:nth-child(2) { animation-delay: 40ms; }
+  .margin-notes div:nth-child(3) { animation-delay: 80ms; }
+  .margin-notes div:nth-child(4) { animation-delay: 120ms; }
+}
+/* 窄屏：竖轴塌成单列，正文列不再限宽 —— 否则右侧会留半幅空白（[lopsided]）*/
+@media (max-width: 820px) {
+  .sec-panel,
+  .sec-steps {
+    grid-template-columns: 1fr;
+  }
+  .body-col {
+    max-width: none;
+  }
+  .axis-note {
+    padding-right: 0;
+    margin-bottom: 8px;
   }
 }
 </style>
