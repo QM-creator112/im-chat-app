@@ -244,8 +244,13 @@ function memberOnline(uid: number): boolean {
     </div>
 
     <div class="chat-body">
-      <!-- 左侧 -->
+      <!-- 左侧：框（导航 + 列表），白纸之外的地 -->
       <div class="side">
+        <!-- 产品标识（house rule：截图里要能读出这是什么产品） -->
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">IM</span>
+          <span class="brand-name">IM 即时通信</span>
+        </div>
         <div class="me">
           <div class="me-avatar">{{ (auth.user?.nickname || '?').slice(0, 1) }}</div>
           <div class="me-info">
@@ -287,12 +292,12 @@ function memberOnline(uid: number): boolean {
             ←
           </button>
           <div class="main-header-left">
-            <div class="main-title">
+            <h1 class="main-title">
               <span class="main-title-text">{{ active?.title || '选择一个会话' }}</span>
               <el-tag v-if="isGroup" size="small" type="info" effect="plain" class="group-tag">
                 群聊 {{ members.length > 0 ? members.length + ' 人' : '' }}
               </el-tag>
-            </div>
+            </h1>
             <div v-if="active" class="main-sub">
               <span class="dot" :class="peerOnline ? 'on' : 'off'" />
               {{ peerOnline ? '有人在线' : '都离线' }}
@@ -312,7 +317,7 @@ function memberOnline(uid: number): boolean {
               :loading="chat.aiLoading"
               @click="handleAskAI"
             >
-              🤖 AI 总结
+              AI 总结
             </el-button>
             <el-button v-if="isGroup" link type="primary" @click="openMembers">成员</el-button>
           </div>
@@ -420,6 +425,8 @@ function memberOnline(uid: number): boolean {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* framed-sheet：整体地 = 框的色，白纸浮在它上面 */
+  background: var(--im-ground);
 }
 
 .banner {
@@ -442,21 +449,54 @@ function memberOnline(uid: number): boolean {
   min-height: 0;
 }
 
+/* 框里的侧栏：与地同色，不放分隔线（framed-sheet 的 off-style 明确禁止侧栏与顶栏之间加线） */
 .side {
-  width: 288px;
-  flex: 0 0 288px;
+  width: var(--im-sidebar);
+  flex: 0 0 var(--im-sidebar);
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-right: 1px solid var(--im-border);
+  background: transparent;
+  min-height: 0;
 }
 
+/* 产品标识：品牌色只出现在这个 24px 方块上 */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 14px 16px 10px;
+}
+
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--im-radius-control);
+  background: var(--im-primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--im-text);
+  letter-spacing: -0.01em;
+}
+
+/* 账号行：作为「切换器」放在侧栏顶部，与产品名同为框的一部分 */
 .me {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--im-border);
+  padding: 10px 16px 12px;
+  /* 与列表之间靠色阶与间距分隔，不用线 */
+  margin-bottom: 4px;
 }
 
 .me-avatar {
@@ -482,7 +522,7 @@ function memberOnline(uid: number): boolean {
 }
 
 .me-status {
-  font-size: 11px;
+  font-size: var(--im-fs-meta);
   color: var(--im-text-weak);
   display: flex;
   align-items: center;
@@ -517,21 +557,29 @@ function memberOnline(uid: number): boolean {
   text-align: center;
 }
 
+/* 白纸：右/底内缩 8px、16px 圆角、1px 边、无阴影 —— 层次只靠一个色阶 */
 .main {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #f7f9fc;
+  background: var(--im-surface);
+  margin: 0 var(--im-sheet-inset) var(--im-sheet-inset) 0;
+  border: 1px solid var(--im-border);
+  border-radius: var(--im-radius-sheet);
+  overflow: hidden;
 }
 
+/* 纸内的顶栏 48px：标题 + 一个动作。与消息区之间用 1px 行线（行线是 app screen 允许的） */
 .main-header {
-  padding: 12px 20px;
-  background: #fff;
-  border-bottom: 1px solid var(--im-border);
+  padding: 0 20px;
+  min-height: 52px;
+  background: var(--im-surface);
+  border-bottom: 1px solid var(--im-rule);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .header-actions {
@@ -542,8 +590,10 @@ function memberOnline(uid: number): boolean {
 }
 
 .main-title {
-  font-size: 15px;
+  font-size: var(--im-fs-title);
   font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0; /* h1 默认有外边距，会把 48px 顶栏撑开 */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -558,12 +608,12 @@ function memberOnline(uid: number): boolean {
 }
 
 .group-tag {
-  font-size: 11px;
+  font-size: var(--im-fs-meta);
   flex: 0 0 auto;
 }
 
 .main-sub {
-  font-size: 11px;
+  font-size: var(--im-fs-meta);
   color: var(--im-text-weak);
   margin-top: 3px;
   display: flex;
@@ -599,7 +649,7 @@ function memberOnline(uid: number): boolean {
 }
 
 .friend-item:hover {
-  background: #f2f5fa;
+  background: var(--im-raised);
 }
 
 .friend-avatar,
@@ -608,8 +658,8 @@ function memberOnline(uid: number): boolean {
   height: 34px;
   flex: 0 0 34px;
   border-radius: 50%;
-  background: var(--im-primary-light);
-  color: #fff;
+  background: var(--im-active);
+  color: var(--im-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -626,7 +676,7 @@ function memberOnline(uid: number): boolean {
 
 .friend-username,
 .member-sub {
-  font-size: 11px;
+  font-size: var(--im-fs-meta);
   color: var(--im-text-weak);
   display: flex;
   align-items: center;
@@ -740,7 +790,7 @@ function memberOnline(uid: number): boolean {
   }
 
   .main-sub {
-    font-size: 11px;
+    font-size: var(--im-fs-meta);
     flex-wrap: wrap;
     row-gap: 2px;
   }

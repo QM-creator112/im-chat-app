@@ -1,23 +1,57 @@
 /* ============================================================================
  * 全局样式
  *
- * 配色与产品原型（docs/prototype/wireframes.png）一致：
- *   主色 #1F3864（深蓝）· 辅色 #2E74B5 · 强调 #E6F0FA
+ * 视觉方向：tasteskill 的 **framed-sheet**（seed 1684245846）
+ *   · 侧栏 + 顶栏共用一个极浅的冷灰「框」(#f4f6f9)，框内不放分隔线
+ *   · 工作区是一张白「纸」：右侧与底部内缩 8px、16px 圆角、1px 边、**无阴影**
+ *   · 层次靠一个色阶，不靠投影；边框与阴影二选一
+ *   · 品牌色（深蓝 #1f3864）收缩到：logo、2px 下划线、发出去的气泡、主按钮
+ *   · 正文 ≥13px（inspector 实测原来 73% 文字 <13px，判为 WARN）
+ * 原型：docs/prototype/wireframes.png
  * ========================================================================== */
 
 :root {
+  /* ---- framed-sheet 令牌（值取自 skill 的 app-screens.md §9.5 + 本方向）---- */
+  --im-ground: #f4f6f9;   /* 框：侧栏与顶栏的地 */
+  --im-surface: #ffffff;  /* 纸：工作区 */
+  --im-raised: #f9fafb;
+  --im-active: #e9edf3;   /* 选中行：中性灰，不是品牌色 */
+  --im-border: #eceff3;   /* 纸的边；比这更重会"读作重" */
+  --im-rule: #f2f4f7;     /* 列表行分隔，比边浅一档 */
+  --im-control: #d1d5db;  /* 输入框边，比边深一档 */
+
+  --im-text: #111418;
+  --im-muted: #5f6368;
+  --im-faint: #6b6b6b;    /* 占位符；再浅就低于 4.5:1 */
+
+  /* 品牌色：只用在 logo、下划线、己方气泡、主按钮 */
   --im-primary: #1f3864;
-  --im-primary-light: #2e74b5;
-  --im-bg: #f5f7fa;
-  --im-bg-sidebar: #ffffff;
-  --im-border: #e4e7ed;
-  --im-text: #1f2329;
-  --im-text-weak: #8a919f;
-  --im-bubble-mine: #1f3864;
-  --im-bubble-peer: #ffffff;
-  --im-online: #52c41a;
-  --im-offline: #bfbfbf;
-  --im-failed: #e54d42;
+  --im-primary-hover: #172b4d;
+  --im-online: #247b50;   /* 状态绿：深一档以满足 4.5:1 文字对比 */
+  --im-offline: #6b6b6b;
+  --im-failed: #c4242a;
+
+  /* 二次强调：比主色亮一档，仅用于需要「次级品牌色」的少量位置 */
+  --im-primary-light: #4a6fa5;
+
+  --im-radius-sheet: 16px;
+  --im-radius-card: 8px;
+  --im-radius-control: 6px;
+  --im-sheet-inset: 8px;
+  --im-sidebar: 240px;
+
+  /* 字号：正文 14，标签 13，最小 12（11px 以下一律不用）*/
+  --im-fs-title: 20px;
+  --im-fs-body: 14px;
+  --im-fs-small: 13px;
+  --im-fs-meta: 12px;
+
+  /* 兼容旧变量名，避免其它文件引用失效 */
+  --im-bg: var(--im-ground);
+  --im-bg-sidebar: transparent;
+  --im-text-weak: var(--im-muted);
+  --im-bubble-mine: var(--im-primary);
+  --im-bubble-peer: var(--im-surface);
 }
 
 * {
@@ -36,7 +70,7 @@ body {
   font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
   color: var(--im-text);
-  background: var(--im-bg);
+  background: var(--im-ground);
   -webkit-font-smoothing: antialiased;
 }
 

@@ -172,23 +172,26 @@ defineExpose({ scrollToBottom })
 </template>
 
 <style scoped>
+/* 消息区比白纸深一档：白气泡靠「色阶」与底分开，不靠描边
+   （app-screens §9.4：边框或色阶二选一）
+   消息少时沉到底部，否则下半屏会留一大片空白，读作没做完 */
 .msg-scroll {
+  /* 消息少时沉底：flex 容器 + 内容底部对齐，否则下半屏一大片空白 */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px 20px 8px;
-  background: #f7f9fc;
-}
-
-.load-more {
-  text-align: center;
-  margin-bottom: 8px;
+  background: var(--im-ground);
 }
 
 .msg-time {
   text-align: center;
-  font-size: 11px;
-  color: var(--im-text-weak);
-  margin: 10px 0 8px;
+  font-size: var(--im-fs-meta);
+  color: var(--im-muted);
+  margin: 12px 0 8px;
 }
 
 .msg-line {
@@ -209,7 +212,7 @@ defineExpose({ scrollToBottom })
   border-radius: 10px;
   background: #f0f4fa;
   border: 1px solid #dbe4f0;
-  border-left: 3px solid var(--im-primary-light);
+  /* 色条属装饰；改用整体色调 + 1px 边标记 AI 消息 */
   color: var(--im-text);
   font-size: 13px;
   line-height: 1.6;
@@ -251,7 +254,7 @@ defineExpose({ scrollToBottom })
 }
 
 .sender {
-  font-size: 11px;
+  font-size: var(--im-fs-meta);
   color: var(--im-text-weak);
   margin-bottom: 3px;
 }
@@ -262,7 +265,7 @@ defineExpose({ scrollToBottom })
 
 .meta {
   margin-top: 3px;
-  font-size: 11px;
+  font-size: var(--im-fs-meta);
 }
 
 .state.sending {
@@ -274,7 +277,7 @@ defineExpose({ scrollToBottom })
 }
 
 .state.read {
-  color: var(--im-primary-light);
+  color: var(--im-muted);
   font-weight: 600;
 }
 
@@ -287,7 +290,11 @@ defineExpose({ scrollToBottom })
  *  · 气泡放宽到 82%（桌面 70%），手机上 70% 会折行过多
  * ========================================================================== */
 @media (max-width: 767px) {
-  .msg-scroll {
+  /* 消息区比白纸深一档：白气泡靠「色阶」与底分开，不靠描边
+   （app-screens §9.4：边框或色阶二选一）
+   消息少时沉到底部，否则下半屏会留一大片空白，读作没做完 */
+.msg-scroll {
+  justify-content: flex-end;
     padding: 12px 12px 8px;
   }
 

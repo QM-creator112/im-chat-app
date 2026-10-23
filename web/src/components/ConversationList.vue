@@ -65,19 +65,19 @@ function select(id: number): void {
 </template>
 
 <style scoped>
+/* 侧栏宽度由 .side（240px）决定，列表撑满它；不再自带固定宽度 */
 .conv-panel {
-  width: 288px;
-  flex: 0 0 288px;
-  background: var(--im-bg-sidebar);
-  border-right: 1px solid var(--im-border);
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: transparent;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .conv-header {
-  padding: 12px;
-  border-bottom: 1px solid var(--im-border);
+  padding: 8px 12px 10px;
 }
 
 .conv-loading {
@@ -95,17 +95,18 @@ function select(id: number): void {
 .conv-item {
   display: flex;
   gap: 10px;
+  min-height: 64px;
   padding: 10px 14px;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .conv-item:hover {
-  background: #f2f5fa;
+  background: var(--im-raised);
 }
 
 .conv-item.active {
-  background: #e6f0fa;
+  background: var(--im-active);
 }
 
 .avatar {
@@ -113,8 +114,8 @@ function select(id: number): void {
   height: 40px;
   flex: 0 0 40px;
   border-radius: 8px;
-  background: var(--im-primary-light);
-  color: #fff;
+  background: var(--im-active);
+  color: var(--im-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -144,13 +145,13 @@ function select(id: number): void {
 }
 
 .conv-time {
-  font-size: 11px;
+  font-size: var(--im-fs-meta);
   color: var(--im-text-weak);
   flex: 0 0 auto;
 }
 
 .conv-last {
-  font-size: 12px;
+  font-size: var(--im-fs-small);
   color: var(--im-text-weak);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -167,7 +168,7 @@ function select(id: number): void {
   border-radius: 9px;
   background: var(--im-failed);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--im-fs-meta);
   line-height: 18px;
   text-align: center;
 }

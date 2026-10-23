@@ -121,17 +121,19 @@ async function submit(): Promise<void> {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(140deg, #eef2f9 0%, #f7f9fc 60%, #eaf1fb 100%);
+  /* framed-sheet: 地是平的冷灰，渐变属于被禁的装饰 */
+  background: var(--im-ground);
   padding: 24px;
 }
 
+/* 卡白纸：1px 边 + 无阴影（边框与阴影二选一；静止的面不该浮起） */
 .login-card {
   width: 100%;
   max-width: 400px;
-  background: #fff;
-  border-radius: 14px;
+  background: var(--im-surface);
+  border: 1px solid var(--im-border);
+  border-radius: var(--im-radius-sheet);
   padding: 36px 32px 24px;
-  box-shadow: 0 12px 40px rgba(31, 56, 100, 0.12);
 }
 
 .brand {
@@ -181,13 +183,13 @@ h1 {
   color: var(--im-text-weak);
 }
 
+/* 说明文字：抬到 13px（原来 12px 拉低了整页正文比例）
+   虚线分隔属被禁的装饰线 —— 只留间距 */
 .tip {
-  margin: 20px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--im-text-weak);
-  border-top: 1px dashed var(--im-border);
-  padding-top: 12px;
+  margin: 24px 0 0;
+  font-size: var(--im-fs-small);
+  line-height: 1.65;
+  color: var(--im-muted);
 }
 
 /* ============================================================================

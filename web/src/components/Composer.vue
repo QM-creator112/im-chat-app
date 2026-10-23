@@ -49,7 +49,7 @@ function onKeydown(e: KeyboardEvent): void {
     />
     <div class="composer-bar">
       <span class="hint">
-        <template v-if="!chat.isConnected">⚠ 未连接</template>
+        <template v-if="!chat.isConnected">未连接</template>
         <template v-else-if="chat.wsStatus === 'reconnecting'">
           正在重连（第 {{ chat.wsAttempt }} 次）
         </template>
