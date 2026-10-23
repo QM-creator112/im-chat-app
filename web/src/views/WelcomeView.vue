@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import sheetShot from '@/assets/shots/app-hires-sheet.png'
 import sideShot from '@/assets/shots/app-hires-side.png'
+import fullShot from '@/assets/shots/app-hires-full.png'
 
 /**
  * 产品首页（落地页）—— `/welcome`
@@ -23,12 +24,12 @@ const router = useRouter()
 
 // ---------- 一次发送的六个步骤（how-it-works）----------
 const steps = [
-  { k: '01', t: '客户端生成幂等键', d: 'UUIDv7 作为 client_msg_id，同一毫秒内也可排序' },
-  { k: '02', t: 'WebSocket 发帧', d: '长连接自带会话上下文，不需要每帧带 token' },
-  { k: '03', t: '事务内锁会话行', d: 'SELECT next_seq … FOR UPDATE，把并发写入排成队' },
-  { k: '04', t: '分配 seq', d: 'seq = next_seq + 1，与消息落库在同一个事务里' },
-  { k: '05', t: '落库并投递', d: '唯一索引兜住重复；投递给会话内所有在线成员' },
-  { k: '06', t: 'ack 回执', d: '客户端拿到服务端 seq 后替换本地临时序号' },
+  { t: '客户端生成幂等键', d: 'UUIDv7 作为 client_msg_id，同一毫秒内也可排序' },
+  { t: 'WebSocket 发帧', d: '长连接自带会话上下文，不需要每帧带 token' },
+  { t: '事务内锁会话行', d: 'SELECT next_seq … FOR UPDATE，把并发写入排成队' },
+  { t: '分配 seq', d: 'seq = next_seq + 1，与消息落库在同一个事务里' },
+  { t: '落库并投递', d: '唯一索引兜住重复；投递给会话内所有在线成员' },
+  { t: 'ack 回执', d: '客户端拿到服务端 seq 后替换本地临时序号' },
 ]
 
 // ---------- 实测数据（全部来自 docs/05-压测报告.md，未做美化）----------
@@ -72,9 +73,11 @@ function goRepo(): void {
     <header class="masthead">
       <div class="mosaic">
         <img :src="sheetShot" alt="应用截图：会话与消息列表" class="cell cell-img-1" />
-        <div class="cell cell-ink" aria-hidden="true"></div>
         <img :src="sideShot" alt="应用截图：会话列表与账号区" class="cell cell-img-2" />
+        <img :src="fullShot" alt="应用截图：完整界面" class="cell cell-img-3" />
         <div class="cell cell-accent" aria-hidden="true"></div>
+        <img :src="sheetShot" alt="应用截图：消息区裁切" class="cell cell-img-4" />
+        <div class="cell cell-ink" aria-hidden="true"></div>
       </div>
       <div class="masthead-title">
         <h1 class="display">
@@ -97,7 +100,6 @@ function goRepo(): void {
     <!-- 1) 四条决定：面板 + 页边小注 -->
     <section id="decisions" class="sec sec-panel">
       <div class="axis-note">
-        <span class="note-num">01</span>
         <h2 class="head">四条决定<br />写在代码之前</h2>
       </div>
       <div class="body-col">
@@ -121,9 +123,9 @@ function goRepo(): void {
         </ol>
         <dl class="margin-notes">
           <div><dt>重复消息</dt><dd>0</dd></div>
-          <div><dt>seq 缺口</dt><dd>0（连续段内）</dd></div>
-          <div><dt>已读写入</dt><dd>1 次 UPDATE</dd></div>
-          <div><dt>投递语义</dt><dd>至少一次 + 去重</dd></div>
+          <div><dt>seq 缺口</dt><dd>0</dd></div>
+          <div><dt>已读写入</dt><dd>1 次</dd></div>
+          <div><dt>投递语义</dt><dd>至少一次</dd></div>
         </dl>
       </div>
     </section>
@@ -154,13 +156,12 @@ rows: 1        duplicates: 0</pre>
     <!-- 3) 调用与回应：六步 -->
     <section id="how" class="sec sec-steps">
       <div class="axis-note">
-        <span class="note-num">02</span>
         <h2 class="head">一次发送<br />经过六步</h2>
       </div>
       <div class="body-col">
         <ol class="steps">
-          <li v-for="s in steps" :key="s.k">
-            <span class="step-k">{{ s.k }}</span>
+          <li v-for="s in steps" :key="s.t">
+
             <span class="step-t">{{ s.t }}</span>
             <span class="step-d">{{ s.d }}</span>
           </li>
@@ -229,7 +230,6 @@ rows: 1        duplicates: 0</pre>
 
     <!-- 5) 把想法再说一遍，反色收尾 -->
     <section class="sec sec-cta">
-      <p class="cta-kicker">Nothing lost. Nothing twice.</p>
       <h2 class="cta-head">点进去，它就是能用的</h2>
       <div class="hero-actions hero-actions-invert">
         <button type="button" class="btn-invert" @click="goApp">进入演示</button>
@@ -253,14 +253,14 @@ rows: 1        duplicates: 0</pre>
  * 字号用 direction sheet 给的四个梯级，不额外加第五个
  * ========================================================================== */
 .page {
-  --paper: #f7f6f2;
+  --paper: #f2f3f5;
   --ink: #14161a;
   --ink-soft: #4a4d52;
   --accent: #1f3864;
-  --rule: #d8d5cc;
+  --rule: #dcdfe4;
 
-  --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
-  --step-body: clamp(1.125rem, 1.05rem + 0.3vw, 1.3125rem);
+  --step-small: clamp(0.875rem, 0.855rem + 0.1vw, 0.9375rem);
+  --step-body: clamp(1rem, 0.97rem + 0.25vw, 1.1875rem);
   --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
   --step-head: clamp(2rem, 1.3rem + 3.2vw, 4rem);
 
@@ -332,9 +332,10 @@ rows: 1        duplicates: 0</pre>
 .masthead {
   padding: 0 var(--pad) clamp(40px, 6vw, 88px);
 }
+/* 刊头：无缝隙 mosaic（direction 要求 gutterless），4 张真实界面 + 2 个印刷色块 */
 .mosaic {
   display: grid;
-  grid-template-columns: 3fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: repeat(2, minmax(0, 1fr));
   height: 45vh;
   min-height: 320px;
@@ -351,8 +352,17 @@ rows: 1        duplicates: 0</pre>
   object-fit: cover;
   object-position: left top;
 }
+.cell-img-3 {
+  object-fit: cover;
+  object-position: left top;
+}
+.cell-img-4 {
+  object-fit: cover;
+  object-position: 30% top;
+}
 .cell-ink {
   background: var(--ink);
+  grid-column: span 2;
 }
 .cell-accent {
   background: var(--accent);
@@ -441,7 +451,7 @@ rows: 1        duplicates: 0</pre>
 .axis-note {
   padding-right: clamp(16px, 3vw, 40px);
 }
-.note-num {
+.note-num-unused {
   display: block;
   font-size: var(--step-small);
   letter-spacing: 0.18em;
@@ -472,12 +482,10 @@ rows: 1        duplicates: 0</pre>
 }
 .decisions li {
   padding: 16px 0;
-  border-top: 1px solid var(--rule);
   display: grid;
   gap: 4px;
 }
 .decisions li:last-child {
-  border-bottom: 1px solid var(--rule);
 }
 .decisions strong {
   font-weight: 600;
@@ -497,7 +505,6 @@ rows: 1        duplicates: 0</pre>
   margin: 0;
 }
 .margin-notes div {
-  border-top: 1px solid var(--rule);
   padding-top: 8px;
 }
 .margin-notes dt {
@@ -564,10 +571,8 @@ rows: 1        duplicates: 0</pre>
   grid-template-columns: 3rem 1fr;
   gap: 2px 12px;
   padding: 14px 0;
-  border-top: 1px solid var(--rule);
 }
 .steps li:last-child {
-  border-bottom: 1px solid var(--rule);
 }
 .step-k {
   grid-row: span 2;
@@ -651,7 +656,6 @@ rows: 1        duplicates: 0</pre>
 .table td {
   text-align: left;
   padding: 12px 10px;
-  border-bottom: 1px solid var(--rule);
 }
 .table thead th {
   font-weight: 400;
@@ -689,7 +693,6 @@ rows: 1        duplicates: 0</pre>
 }
 .fact {
   padding: 20px 18px 16px;
-  border-right: 1px solid var(--rule);
   display: grid;
   gap: 2px;
 }
@@ -769,7 +772,6 @@ rows: 1        duplicates: 0</pre>
   padding: 24px var(--pad) 40px;
   font-size: var(--step-small);
   color: var(--ink-soft);
-  border-top: 1px solid var(--rule);
 }
 
 /* ---------------- 手机 ---------------- */
@@ -807,7 +809,6 @@ rows: 1        duplicates: 0</pre>
     border-right: none;
   }
   .fact:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--rule);
   }
   .table th:nth-child(4),
   .table td:nth-child(4),
