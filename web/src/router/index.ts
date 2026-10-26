@@ -11,13 +11,6 @@ const router = createRouter({
       component: () => import('@/views/LoginView.vue'),
       meta: { public: true },
     },
-      {
-        // 产品首页（落地页）：公开可访问，让面试官先看到门面
-        path: '/welcome',
-        name: 'welcome',
-        component: () => import('@/views/WelcomeView.vue'),
-        meta: { public: true },
-      },
     {
       path: '/',
       name: 'chat',
