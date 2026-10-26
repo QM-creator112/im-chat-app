@@ -106,9 +106,15 @@ async function submit(): Promise<void> {
         </div>
       </el-form>
 
+      <!--
+        这里只说**用户能感知的收益**，不讲实现。
+        「access token 30 分钟 / refresh 14 天 / 前端自动刷新」这类内容属于
+        接口契约与面试素材，已写到 docs/api.md 与 docs/08-面试问答.md：
+          · 登录页的任务是让人进来，不是介绍架构
+          · 公开 token 有效期与刷新机制，等于给攻击者省侦察成本
+      -->
       <p class="tip">
-        登录后拿到 access token（30 分钟）与 refresh token（14 天），
-        token 过期时前端自动刷新，用户无感。
+        登录状态保留 14 天，期间不用重复登录。
       </p>
     </div>
   </div>
